@@ -1703,10 +1703,13 @@ async function streamAnthropic(messages, systemPrompt, model, onChunk) {
   };
 
   // 基盤メモ→直近メモ→システムプロンプトを結合して1ブロックでキャッシュ
-  // Claude 4系モデルは1時間キャッシュ(ttl:3600)が必要。ttl省略時は無視される場合がある
   const memoParts = [settings.kibanMemo, settings.chokukinMemo, systemPrompt].filter(Boolean);
   if (memoParts.length > 0) {
-    body.system = [{ type: 'text', text: memoParts.join('\n\n---\n\n'), cache_control: { type: 'ephemeral' } }];
+    const sysText = memoParts.join('\n\n---\n\n');
+    console.log('[cache debug] parts:', memoParts.length, '/ chars:', sysText.length, '/ est tokens:', Math.round(sysText.length / 1.5));
+    body.system = [{ type: 'text', text: sysText, cache_control: { type: 'ephemeral' } }];
+  } else {
+    console.log('[cache debug] system is EMPTY — memos not loaded?');
   }
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {

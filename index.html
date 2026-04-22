@@ -284,20 +284,23 @@ html, body {
 }
 @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
 .msg-copy {
-  font-size: 11px;
-  color: var(--text-dim);
   background: none;
   border: none;
-  padding: 2px 6px;
+  padding: 2px 4px;
   cursor: pointer;
   border-radius: 4px;
-  letter-spacing: 0.03em;
-  transition: color 0.2s, background 0.2s;
-  align-self: flex-end;
+  opacity: 0.35;
+  transition: opacity 0.2s;
+  line-height: 1;
+  display: flex;
+  align-items: center;
 }
 .msg.user .msg-copy { align-self: flex-end; }
 .msg.assistant .msg-copy { align-self: flex-start; }
-.msg-copy:active, .msg-copy.copied { color: var(--accent-dark); background: var(--accent-bg); }
+.msg-copy:active { opacity: 0.8; }
+.msg-copy.copied { opacity: 1; }
+.msg-copy svg { width: 13px; height: 13px; stroke: var(--text-dim); fill: none; }
+.msg-copy.copied svg { stroke: var(--accent-dark); }
 
 .chat-empty {
   flex: 1;
@@ -1304,7 +1307,7 @@ function createMsgEl(role, content, msgModel) {
   div.innerHTML = `
     <div class="msg-label">${label}</div>
     <div class="msg-bubble">${esc(content)}</div>
-    <button class="msg-copy">コピー</button>
+    <button class="msg-copy" title="copy">${copyIcon()}</button>
   `;
   div.querySelector('.msg-copy').addEventListener('click', function() {
     copyMsg(this, content);
@@ -1312,17 +1315,25 @@ function createMsgEl(role, content, msgModel) {
   return div;
 }
 
+const copyIcon = () => `<svg viewBox="0 0 16 16" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="5" y="4" width="8" height="10" rx="1.5"/>
+  <path d="M11 4V3a1 1 0 0 0-1-1H4a1.5 1.5 0 0 0-1.5 1.5v8A1 1 0 0 0 4 12.5h1"/>
+</svg>`;
+const checkIcon = () => `<svg viewBox="0 0 16 16" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <polyline points="3,8 6.5,12 13,4"/>
+</svg>`;
+
 function copyMsg(btn, text) {
   navigator.clipboard.writeText(text).then(() => {
-    btn.textContent = '✓ コピーしました';
+    btn.innerHTML = checkIcon();
     btn.classList.add('copied');
     setTimeout(() => {
-      btn.textContent = 'コピー';
+      btn.innerHTML = copyIcon();
       btn.classList.remove('copied');
     }, 1500);
   }).catch(() => {
-    btn.textContent = '失敗';
-    setTimeout(() => { btn.textContent = 'コピー'; }, 1500);
+    btn.innerHTML = checkIcon();
+    setTimeout(() => { btn.innerHTML = copyIcon(); }, 1500);
   });
 }
 
@@ -1408,7 +1419,8 @@ async function sendMessage() {
     aDiv.classList.remove('streaming');
     const copyBtn = document.createElement('button');
     copyBtn.className = 'msg-copy';
-    copyBtn.textContent = 'コピー';
+    copyBtn.title = 'copy';
+    copyBtn.innerHTML = copyIcon();
     copyBtn.addEventListener('click', function() { copyMsg(this, fullText); });
     aDiv.appendChild(copyBtn);
     // store model per message for accurate labeling on reload
@@ -1530,6 +1542,7 @@ async function streamAnthropic(messages, systemPrompt, model, onChunk) {
       'x-api-key': key,
       'anthropic-version': '2023-06-01',
       'anthropic-beta': 'prompt-caching-2024-07-31',
+      'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify(body),
   });

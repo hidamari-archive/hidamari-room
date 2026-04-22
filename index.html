@@ -895,15 +895,18 @@ async function loadMemoryFromDb() {
   const { data, error } = await db.from('house_memory').select('*');
   if (error) { console.warn('memory load error:', error.message); return; }
   for (const row of (data || [])) {
-    if (row.key === 'kiban')    settings.kibanMemo    = row.content;
-    if (row.key === 'chokukin') settings.chokukinMemo = row.content;
+    if (row.key === 'kiban')        settings.kibanMemo    = row.content;
+    if (row.key === 'chokukin')     settings.chokukinMemo = row.content;
+    if (row.key === 'systemPrompt') settings.systemPrompt = row.content;
   }
 }
 
 async function saveMemoryToDb() {
+  const now = new Date().toISOString();
   const rows = [
-    { key: 'kiban',    content: settings.kibanMemo,    updated_at: new Date().toISOString() },
-    { key: 'chokukin', content: settings.chokukinMemo, updated_at: new Date().toISOString() },
+    { key: 'kiban',        content: settings.kibanMemo,    updated_at: now },
+    { key: 'chokukin',     content: settings.chokukinMemo, updated_at: now },
+    { key: 'systemPrompt', content: settings.systemPrompt, updated_at: now },
   ];
   const { error } = await db.from('house_memory').upsert(rows, { onConflict: 'key' });
   if (error) console.warn('memory save error:', error.message);
@@ -961,9 +964,10 @@ async function initApp() {
     loadConversationsFromDb(), // 会話履歴をSupabaseから取得
   ]);
 
-  // メモが更新されたのでUIに反映
+  // Supabase取得後にUIへ反映（メモ・システムプロンプト）
   document.getElementById('setKibanMemo').value    = settings.kibanMemo;
   document.getElementById('setChokukinMemo').value = settings.chokukinMemo;
+  document.getElementById('setSystemPrompt').value = settings.systemPrompt;
 
   showLoading(false);
   if (currentConvId && getCurrentConv()) {

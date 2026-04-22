@@ -8,7 +8,7 @@
 <title>灯だまりの家</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 /* ===== RESET & BASE ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1697,12 +1697,11 @@ async function streamAnthropic(messages, systemPrompt, model, onChunk) {
     messages,
   };
 
-  // 基盤メモ→直近メモ→システムプロンプトの順で注入。それぞれ独立したキャッシュブロックにする
-  const systemBlocks = [];
-  if (settings.kibanMemo)    systemBlocks.push({ type: 'text', text: settings.kibanMemo,    cache_control: { type: 'ephemeral' } });
-  if (settings.chokukinMemo) systemBlocks.push({ type: 'text', text: settings.chokukinMemo, cache_control: { type: 'ephemeral' } });
-  if (systemPrompt)          systemBlocks.push({ type: 'text', text: systemPrompt,          cache_control: { type: 'ephemeral' } });
-  if (systemBlocks.length > 0) body.system = systemBlocks;
+  // 基盤メモ→直近メモ→システムプロンプトを結合して1ブロックでキャッシュ（分割すると各ブロックが1024トークン未満になりキャッシュされないため）
+  const memoParts = [settings.kibanMemo, settings.chokukinMemo, systemPrompt].filter(Boolean);
+  if (memoParts.length > 0) {
+    body.system = [{ type: 'text', text: memoParts.join('\n\n---\n\n'), cache_control: { type: 'ephemeral' } }];
+  }
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',

@@ -564,6 +564,67 @@ html, body {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ===== CACHE TIMER BAR ===== */
+#cacheTimerBar {
+  display: none;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 4px 16px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-dim);
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+  transition: color 0.3s;
+}
+#cacheTimerBar.warning { color: #c07840; }
+#cacheTimerBar.expired { color: var(--text-dim); font-style: italic; }
+
+/* ===== HISTORY ITEM ACTIONS ===== */
+.history-item-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.history-item-top .history-title {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+.history-item-btns {
+  display: flex;
+  gap: 0;
+  flex-shrink: 0;
+  margin-top: -1px;
+}
+.history-item-btn {
+  background: none;
+  border: none;
+  font-size: 13px;
+  padding: 1px 5px;
+  cursor: pointer;
+  border-radius: 4px;
+  line-height: 1.4;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+.history-item-btn:active { opacity: 1; }
+.history-item-btn.pinned { opacity: 0.9; }
+.history-title-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-input);
+  border: 1px solid var(--accent-dim);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: var(--font-serif);
+  font-size: 14px;
+  padding: 1px 8px;
+  outline: none;
+  width: 100%;
+}
 </style>
 </head>
 <body>
@@ -624,6 +685,7 @@ html, body {
         <div style="font-size:12px;color:var(--text-dim)">メッセージを送ってください</div>
       </div>
     </div>
+    <div id="cacheTimerBar"></div>
     <div id="inputArea">
       <textarea id="msgInput" placeholder="メッセージを入力…" rows="1"></textarea>
       <button id="sendBtn" onclick="sendMessage()" title="送信">↑</button>
@@ -863,6 +925,8 @@ let settings = {
 let conversations = [];
 let currentConvId = null;
 let isStreaming = false;
+let cacheTimerEnd = null;
+let cacheTimerInterval = null;
 
 // ===== STORAGE =====
 const STORE_SETTINGS = 'hidamari_house_settings';
@@ -1031,6 +1095,7 @@ function selectModel(model) {
   saveSettingsToStorage();
   updateHeaderModel();
   closeModelPicker();
+  if (!model.startsWith('claude-')) clearCacheTimer();
   // sync settings screen select if already rendered
   const sel = document.getElementById('setModel');
   if (sel) {
@@ -1235,6 +1300,50 @@ function updateConvTitle(conv) {
   conv.title = first.content.slice(0, 30) + (first.content.length > 30 ? '…' : '');
 }
 
+// ===== PIN =====
+const STORE_PINNED = 'hidamari_house_pinned';
+
+function getPinnedIds() {
+  return JSON.parse(localStorage.getItem(STORE_PINNED) || '[]');
+}
+
+function togglePin(convId) {
+  const pinned = getPinnedIds();
+  const idx = pinned.indexOf(convId);
+  if (idx >= 0) pinned.splice(idx, 1);
+  else pinned.unshift(convId);
+  localStorage.setItem(STORE_PINNED, JSON.stringify(pinned));
+  renderHistoryList();
+}
+
+// ===== RENAME =====
+function startRename(convId) {
+  const titleEl = document.getElementById('htitle-' + convId);
+  if (!titleEl) return;
+  const conv = conversations.find(c => c.id === convId);
+  if (!conv) return;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'history-title-input';
+  input.value = conv.title;
+  titleEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const save = async () => {
+    const newTitle = input.value.trim() || conv.title;
+    conv.title = newTitle;
+    await db.from('house_conversations').update({ title: newTitle }).eq('conv_id', convId);
+    renderHistoryList();
+  };
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { renderHistoryList(); }
+  });
+}
+
 // ===== HISTORY UI =====
 function renderHistoryList() {
   const el = document.getElementById('historyList');
@@ -1242,17 +1351,35 @@ function renderHistoryList() {
     el.innerHTML = '<div class="history-empty">会話履歴はありません</div>';
     return;
   }
-  el.innerHTML = conversations.map(c => `
+  const pinned = getPinnedIds();
+  const sorted = [...conversations].sort((a, b) => {
+    const pa = pinned.includes(a.id), pb = pinned.includes(b.id);
+    if (pa !== pb) return pa ? -1 : 1;
+    return b.updatedAt - a.updatedAt;
+  });
+  el.innerHTML = sorted.map(c => {
+    const pin = pinned.includes(c.id);
+    return `
     <div class="history-item ${c.id === currentConvId ? 'current' : ''}"
          onclick="loadConversation('${c.id}')">
-      <div class="history-title">${esc(c.title)}</div>
+      <div class="history-item-top">
+        <div class="history-title" id="htitle-${c.id}">${pin ? '📌 ' : ''}${esc(c.title)}</div>
+        <div class="history-item-btns">
+          <button class="history-item-btn ${pin ? 'pinned' : ''}"
+                  onclick="togglePin('${c.id}');event.stopPropagation()"
+                  title="${pin ? 'ピン解除' : 'ピン止め'}">📍</button>
+          <button class="history-item-btn"
+                  onclick="startRename('${c.id}');event.stopPropagation()"
+                  title="タイトルを変更">✏️</button>
+        </div>
+      </div>
       <div class="history-meta">
         <span>${modelLabel(c.model)}</span>
         <span>${dateStr(c.updatedAt)}</span>
         <span>${c.messages.filter(m=>m.role==='user').length} 往復</span>
       </div>
     </div>
-  `).join('');
+  `}).join('');
 }
 
 function modelLabel(m) {
@@ -1346,6 +1473,43 @@ function scrollToBottom() {
   setTimeout(() => c.scrollTop = c.scrollHeight, 50);
 }
 
+// ===== CACHE TIMER =====
+function startCacheTimer() {
+  if (!settings.model.startsWith('claude-')) return;
+  cacheTimerEnd = Date.now() + 5 * 60 * 1000;
+  const bar = document.getElementById('cacheTimerBar');
+  bar.style.display = 'block';
+  bar.className = '';
+  if (cacheTimerInterval) clearInterval(cacheTimerInterval);
+  cacheTimerInterval = setInterval(tickCacheTimer, 1000);
+  tickCacheTimer();
+}
+
+function clearCacheTimer() {
+  if (cacheTimerInterval) clearInterval(cacheTimerInterval);
+  cacheTimerInterval = null;
+  cacheTimerEnd = null;
+  const bar = document.getElementById('cacheTimerBar');
+  bar.style.display = 'none';
+  bar.className = '';
+}
+
+function tickCacheTimer() {
+  const bar = document.getElementById('cacheTimerBar');
+  const remaining = cacheTimerEnd - Date.now();
+  if (remaining <= 0) {
+    bar.textContent = '♻ キャッシュ切れ（次回リクエストで再作成）';
+    bar.className = 'expired';
+    clearInterval(cacheTimerInterval);
+    cacheTimerInterval = null;
+    return;
+  }
+  const mins = Math.floor(remaining / 60000);
+  const secs = Math.floor((remaining % 60000) / 1000);
+  bar.textContent = `♻ キャッシュ有効 ${mins}:${secs.toString().padStart(2, '0')}`;
+  bar.className = remaining < 60000 ? 'warning' : '';
+}
+
 function esc(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
@@ -1431,6 +1595,7 @@ async function sendMessage() {
     conv.messages.push({ role: 'assistant', content: fullText, model: usedModel });
     conv.updatedAt = Date.now();
     saveConversation(conv);
+    startCacheTimer();
 
   } catch (err) {
     aDiv.classList.remove('streaming');

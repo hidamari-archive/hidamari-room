@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>灯だまりの家</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:         #FAF6F0;
+  --bg-card:    #ffffff;
+  --bg-input:   #f2ede5;
+  --bg-hover:   #ede8e0;
+  --border:     #ddd8ce;
+  --border-dim: #e8e3da;
+  --text:       #3a3530;
+  --text-light: #6a6058;
+  --text-dim:   #9e9488;
+  --accent:     #c9a86c;
+  --accent-dark: #8a6e3e;
+  --accent-dim: #b8934a;
+  --accent-bg:  rgba(201,168,108,0.12);
+  --user-bg:    #fff7e6;
+  --sage-bg:    #f8f4ee;
+  --error:      #c05050;
+  --font-serif: 'Shippori Mincho', serif;
+  --font-sans:  'Noto Sans JP', sans-serif;
+  --r:          14px;
+  --r-sm:       8px;
+}
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+/* ===== PASSWORD SCREEN ===== */
+#passwordScreen {
+  position: fixed; inset: 0;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  flex-direction: column;
+  gap: 24px;
+  padding: 40px 24px;
+}
+.pw-flame {
+  font-size: 36px;
+  animation: flicker 3s ease-in-out infinite;
+}
+@keyframes flicker {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(0.97); }
+}
+.pw-title {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  color: var(--accent-dark);
+  letter-spacing: 0.1em;
+}
+.pw-subtitle {
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.05em;
+}
+.pw-input {
+  width: 100%; max-width: 280px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  padding: 12px 16px;
+  text-align: center;
+  letter-spacing: 0.2em;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.pw-input:focus { border-color: var(--accent-dim); }
+.pw-btn {
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--r-sm);
+  color: var(--accent-dark);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  padding: 10px 32px;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  transition: all 0.2s;
+}
+.pw-btn:active { opacity: 0.7; }
+.pw-error {
+  font-size: 12px;
+  color: var(--error);
+  opacity: 0;
+  transition: opacity 0.3s;
+  height: 16px;
+}
+
+/* ===== LAYOUT ===== */
+#app {
+  display: none;
+  height: 100vh;
+  height: 100dvh;
+  flex-direction: column;
+}
+#app.visible { display: flex; }
+
+/* ===== HEADER ===== */
+#header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(80,60,40,0.06);
+}
+.header-title {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  color: var(--accent-dark);
+  letter-spacing: 0.08em;
+  flex: 1;
+}
+.header-model {
+  font-size: 11px;
+  color: var(--accent-dark);
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-dim);
+  border-radius: 4px;
+  padding: 3px 8px;
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background 0.2s, border-color 0.2s;
+  line-height: 1.6;
+}
+.header-model:hover, .header-model.open {
+  background: rgba(201,168,108,0.22);
+  border-color: var(--accent-dark);
+}
+.header-btn {
+  background: none;
+  border: none;
+  color: var(--text-light);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+  line-height: 1;
+}
+.header-btn:active { background: var(--bg-hover); }
+
+/* ===== MODEL PICKER ===== */
+#modelPicker {
+  position: fixed;
+  top: 50px;
+  right: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  box-shadow: 0 8px 24px rgba(80,60,40,0.14);
+  z-index: 200;
+  min-width: 230px;
+  max-width: 290px;
+  max-height: 72vh;
+  overflow-y: auto;
+  padding: 8px 0;
+  display: none;
+  animation: fadeIn 0.15s ease;
+}
+#modelPicker.open { display: block; }
+.picker-group {
+  font-size: 10px;
+  color: var(--accent-dim);
+  letter-spacing: 0.08em;
+  padding: 10px 14px 4px;
+  text-transform: uppercase;
+  border-top: 1px solid var(--border-dim);
+  margin-top: 4px;
+}
+.picker-group:first-child { border-top: none; margin-top: 0; }
+.picker-item {
+  padding: 9px 14px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s;
+  line-height: 1.4;
+}
+.picker-item:active, .picker-item:hover { background: var(--bg-hover); }
+.picker-item.selected {
+  color: var(--accent-dark);
+  font-weight: 500;
+}
+.picker-item.selected::before {
+  content: '✓ ';
+  font-size: 11px;
+}
+
+/* ===== MAIN AREA (screens) ===== */
+.screen {
+  display: none;
+  flex: 1;
+  overflow: hidden;
+  flex-direction: column;
+}
+.screen.active { display: flex; }
+
+/* ===== CHAT SCREEN ===== */
+#chatMessages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scroll-behavior: smooth;
+}
+.msg {
+  display: flex;
+  flex-direction: column;
+  max-width: 88%;
+  gap: 4px;
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.msg.user { align-self: flex-end; align-items: flex-end; }
+.msg.assistant { align-self: flex-start; align-items: flex-start; }
+.msg-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.05em;
+  padding: 0 4px;
+}
+.msg-bubble {
+  border-radius: var(--r);
+  padding: 10px 14px;
+  line-height: 1.7;
+  font-size: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: 0 1px 3px rgba(80,60,40,0.07);
+}
+.msg.user .msg-bubble {
+  background: var(--user-bg);
+  border: 1px solid var(--border);
+  border-bottom-right-radius: 4px;
+  color: var(--text);
+}
+.msg.assistant .msg-bubble {
+  background: var(--sage-bg);
+  border: 1px solid var(--border-dim);
+  border-bottom-left-radius: 4px;
+  color: var(--text);
+}
+.msg.assistant.streaming .msg-bubble::after {
+  content: '▋';
+  animation: blink 0.8s step-end infinite;
+  color: var(--accent-dim);
+  font-size: 12px;
+}
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+.msg-copy {
+  font-size: 11px;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+  transition: color 0.2s, background 0.2s;
+  align-self: flex-end;
+}
+.msg.user .msg-copy { align-self: flex-end; }
+.msg.assistant .msg-copy { align-self: flex-start; }
+.msg-copy:active, .msg-copy.copied { color: var(--accent-dark); background: var(--accent-bg); }
+
+.chat-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 40px;
+  text-align: center;
+}
+.chat-empty-flame { font-size: 32px; opacity: 0.5; }
+.chat-empty-text { font-family: var(--font-serif); font-size: 15px; color: var(--text-light); }
+
+/* ===== INPUT AREA ===== */
+#inputArea {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+#msgInput {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  padding: 10px 14px;
+  resize: none;
+  outline: none;
+  max-height: 120px;
+  line-height: 1.5;
+  transition: border-color 0.2s;
+}
+#msgInput:focus { border-color: var(--accent-dim); }
+#msgInput::placeholder { color: var(--text-dim); }
+#sendBtn {
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--r-sm);
+  color: var(--accent-dark);
+  font-size: 18px;
+  width: 42px; height: 42px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+#sendBtn:active { opacity: 0.6; }
+#sendBtn:disabled { opacity: 0.3; cursor: default; }
+
+/* ===== HISTORY SCREEN ===== */
+#historyScreen {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  gap: 10px;
+}
+.history-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--r);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(80,60,40,0.05);
+}
+.history-item:active { background: var(--bg-hover); }
+.history-item.current { border-color: var(--accent-dim); }
+.history-title {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+  display: flex;
+  gap: 8px;
+}
+.history-empty {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 60px 20px;
+}
+.history-actions {
+  display: flex;
+  gap: 10px;
+  padding: 0 16px 16px;
+  flex-shrink: 0;
+}
+.history-new-btn {
+  flex: 1;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--r-sm);
+  color: var(--accent-dark);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 10px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: opacity 0.2s;
+}
+.history-new-btn:active { opacity: 0.7; }
+.history-del-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  font-size: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.history-del-btn:active { color: var(--error); border-color: var(--error); }
+
+/* ===== SETTINGS SCREEN ===== */
+#settingsScreen {
+  overflow-y: auto;
+  padding: 16px;
+  gap: 0;
+}
+.settings-section {
+  margin-bottom: 28px;
+}
+.settings-label {
+  font-size: 11px;
+  color: var(--accent-dark);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-dim);
+}
+.settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.settings-row-label {
+  font-size: 12px;
+  color: var(--text-light);
+  letter-spacing: 0.02em;
+}
+.settings-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.settings-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  padding: 10px 12px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.settings-input:focus { border-color: var(--accent-dim); }
+.settings-select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  padding: 10px 12px;
+  width: 100%;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239e9488' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+.settings-textarea {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 10px 12px;
+  width: 100%;
+  outline: none;
+  resize: vertical;
+  min-height: 160px;
+  line-height: 1.6;
+  transition: border-color 0.2s;
+}
+.settings-textarea:focus { border-color: var(--accent-dim); }
+.settings-save-btn {
+  width: 100%;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--r-sm);
+  color: var(--accent-dark);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  padding: 12px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: opacity 0.2s;
+  margin-top: 8px;
+}
+.settings-save-btn:active { opacity: 0.7; }
+.settings-range-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.settings-range {
+  flex: 1;
+  accent-color: var(--accent-dim);
+}
+.settings-range-val {
+  font-size: 14px;
+  color: var(--accent-dark);
+  min-width: 28px;
+  text-align: right;
+}
+.settings-status {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 6px 0;
+  min-height: 20px;
+}
+.settings-status.ok { color: #5a9e5a; }
+.settings-status.err { color: var(--error); }
+
+/* ===== FOOTER ===== */
+.footer-brand {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 12px 0 6px;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ===== PASSWORD SCREEN ===== -->
+<div id="passwordScreen">
+  <div class="pw-flame">🕯</div>
+  <div class="pw-title">灯だまりの家</div>
+  <div class="pw-subtitle">あいことばを入力してください</div>
+  <input type="password" id="pwInput" class="pw-input" placeholder="••••••" autocomplete="off">
+  <div class="pw-error" id="pwError">あいことばが違います</div>
+  <button class="pw-btn" onclick="checkPassword()">入室する</button>
+</div>
+
+<!-- ===== APP ===== -->
+<div id="app">
+
+  <!-- HEADER -->
+  <div id="header">
+    <span class="header-title">🕯 灯だまりの家</span>
+    <button class="header-model" id="headerModel" onclick="toggleModelPicker()" title="モデルを切り替え">—</button>
+    <button class="header-btn" title="新しい会話" onclick="newConversation()">✏️</button>
+    <button class="header-btn" title="会話履歴" onclick="showScreen('history')">📚</button>
+    <button class="header-btn" title="設定" onclick="showScreen('settings')">⚙️</button>
+  </div>
+
+  <!-- MODEL PICKER DROPDOWN -->
+  <div id="modelPicker">
+    <div class="picker-group">Gemini（Google・無料枠あり）</div>
+    <div class="picker-item" data-model="gemini-3.1-flash-lite-preview" onclick="selectModel('gemini-3.1-flash-lite-preview')">gemini-3.1-flash-lite-preview</div>
+    <div class="picker-item" data-model="gemini-2.5-flash-lite" onclick="selectModel('gemini-2.5-flash-lite')">gemini-2.5-flash-lite</div>
+    <div class="picker-item" data-model="gemini-2.5-flash" onclick="selectModel('gemini-2.5-flash')">gemini-2.5-flash</div>
+    <div class="picker-item" data-model="gemini-3.0-flash" onclick="selectModel('gemini-3.0-flash')">gemini-3.0-flash</div>
+    <div class="picker-item" data-model="gemini-2.0-flash-lite" onclick="selectModel('gemini-2.0-flash-lite')">gemini-2.0-flash-lite</div>
+    <div class="picker-group">Gemma（Google・大容量無料）</div>
+    <div class="picker-item" data-model="gemma-3-27b-it" onclick="selectModel('gemma-3-27b-it')">gemma-3-27b-it</div>
+    <div class="picker-item" data-model="gemma-3-12b-it" onclick="selectModel('gemma-3-12b-it')">gemma-3-12b-it</div>
+    <div class="picker-item" data-model="gemma-3-4b-it" onclick="selectModel('gemma-3-4b-it')">gemma-3-4b-it</div>
+    <div class="picker-item" data-model="gemma-4-26b-it" onclick="selectModel('gemma-4-26b-it')">gemma-4-26b-it</div>
+    <div class="picker-item" data-model="gemma-4-31b-it" onclick="selectModel('gemma-4-31b-it')">gemma-4-31b-it</div>
+    <div class="picker-group">Claude（Anthropic）</div>
+    <div class="picker-item" data-model="claude-opus-4-7" onclick="selectModel('claude-opus-4-7')">claude-opus-4-7</div>
+    <div class="picker-item" data-model="claude-opus-4-6" onclick="selectModel('claude-opus-4-6')">claude-opus-4-6</div>
+    <div class="picker-item" data-model="claude-sonnet-4-6" onclick="selectModel('claude-sonnet-4-6')">claude-sonnet-4-6</div>
+    <div class="picker-item" data-model="claude-haiku-4-5-20251001" onclick="selectModel('claude-haiku-4-5-20251001')">claude-haiku-4-5</div>
+    <div class="picker-group">Grok（xAI）</div>
+    <div class="picker-item" data-model="grok-4.20-0309-non-reasoning" onclick="selectModel('grok-4.20-0309-non-reasoning')">grok-4.20-0309-non-reasoning</div>
+    <div class="picker-item" data-model="grok-4-1-fast-reasoning" onclick="selectModel('grok-4-1-fast-reasoning')">grok-4-1-fast-reasoning</div>
+    <div class="picker-item" data-model="grok-4-1-fast-non-reasoning" onclick="selectModel('grok-4-1-fast-non-reasoning')">grok-4-1-fast-non-reasoning</div>
+  </div>
+
+  <!-- CHAT SCREEN -->
+  <div class="screen active" id="chatScreen">
+    <div id="chatMessages">
+      <div class="chat-empty" id="chatEmpty">
+        <div class="chat-empty-flame">🕯</div>
+        <div class="chat-empty-text">灯だまりの家へようこそ</div>
+        <div style="font-size:12px;color:var(--text-dim)">メッセージを送ってください</div>
+      </div>
+    </div>
+    <div id="inputArea">
+      <textarea id="msgInput" placeholder="メッセージを入力…" rows="1"></textarea>
+      <button id="sendBtn" onclick="sendMessage()" title="送信">↑</button>
+    </div>
+  </div>
+
+  <!-- HISTORY SCREEN -->
+  <div class="screen" id="historyScreen">
+    <div style="flex:1;overflow-y:auto;padding:16px;" id="historyList"></div>
+    <div class="history-actions">
+      <button class="history-new-btn" onclick="newConversation()">＋ 新しい会話</button>
+      <button class="history-del-btn" onclick="deleteCurrentConversation()">削除</button>
+    </div>
+    <div class="footer-brand">🕯 灯だまり工房</div>
+  </div>
+
+  <!-- SETTINGS SCREEN -->
+  <div class="screen" id="settingsScreen">
+
+    <!-- API Keys -->
+    <div class="settings-section">
+      <div class="settings-label">API キー</div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">Gemini APIキー（Google AI Studio）</div>
+        <input type="password" id="setGeminiKey" class="settings-input" placeholder="AIza...">
+        <div class="settings-hint">gemini-2.0-flash-lite などに使用</div>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">Anthropic APIキー</div>
+        <input type="password" id="setAnthropicKey" class="settings-input" placeholder="sk-ant-...">
+        <div class="settings-hint">Claude Opus / Sonnet / Haiku に使用</div>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">xAI APIキー（Grok）</div>
+        <input type="password" id="setXaiKey" class="settings-input" placeholder="xai-...">
+        <div class="settings-hint">Grok に使用（オプション）</div>
+      </div>
+    </div>
+
+    <!-- Model -->
+    <div class="settings-section">
+      <div class="settings-label">モデル</div>
+      <div class="settings-row">
+        <div class="settings-row-label">使用モデル</div>
+        <select id="setModel" class="settings-select" onchange="onModelSelectChange()">
+          <optgroup label="Gemini（Google）★無料枠あり">
+            <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview（500回/日）</option>
+            <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite（フォールバック用）</option>
+            <option value="gemini-2.5-flash">gemini-2.5-flash（20回/日）</option>
+            <option value="gemini-3.0-flash">gemini-3.0-flash（20回/日）</option>
+            <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
+          </optgroup>
+          <optgroup label="Gemma（Google・大容量無料）">
+            <option value="gemma-3-27b-it">gemma-3-27b-it（14,400回/日・最高性能）</option>
+            <option value="gemma-3-12b-it">gemma-3-12b-it（14,400回/日）</option>
+            <option value="gemma-3-4b-it">gemma-3-4b-it（14,400回/日・軽量）</option>
+            <option value="gemma-4-26b-it">gemma-4-26b-it（1,500回/日）</option>
+            <option value="gemma-4-31b-it">gemma-4-31b-it（1,500回/日・最大）</option>
+          </optgroup>
+          <optgroup label="Claude（Anthropic）">
+            <option value="claude-opus-4-7">claude-opus-4-7（Opus最新）</option>
+            <option value="claude-opus-4-6">claude-opus-4-6</option>
+            <option value="claude-sonnet-4-6">claude-sonnet-4-6（Sonnet）</option>
+            <option value="claude-haiku-4-5-20251001">claude-haiku-4-5（Haiku）</option>
+          </optgroup>
+          <optgroup label="Grok（xAI）">
+            <option value="grok-4.20-0309-non-reasoning">grok-4.20-0309-non-reasoning</option>
+            <option value="grok-4-1-fast-reasoning">grok-4-1-fast-reasoning</option>
+            <option value="grok-4-1-fast-non-reasoning">grok-4-1-fast-non-reasoning</option>
+          </optgroup>
+          <option value="custom">カスタム（直接入力）</option>
+        </select>
+        <input type="text" id="setModelCustom" class="settings-input" placeholder="model-id" style="display:none;margin-top:8px;">
+        <div class="settings-hint" id="setModelHint"></div>
+      </div>
+    </div>
+
+    <!-- Memory -->
+    <div class="settings-section">
+      <div class="settings-label">記憶</div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">基盤メモ（長期記憶）</div>
+        <textarea id="setKibanMemo" class="settings-textarea" style="min-height:220px"
+          placeholder="sage kibanmemo の内容をここに貼ります。数章に一度更新。Anthropic系モデルではキャッシュされてコスト削減されます。"></textarea>
+        <div class="settings-hint">会話の先頭に自動挿入・Prompt Cachingで90%引き</div>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">直近メモ（短期記憶）</div>
+        <textarea id="setChokukinMemo" class="settings-textarea" style="min-height:160px"
+          placeholder="sage chokukin memo の内容をここに貼ります。セッション末にセージに生成してもらって更新。5章分ためたら基盤メモに統合。"></textarea>
+        <div class="settings-hint">基盤メモの後ろに挿入・同じくキャッシュされます</div>
+      </div>
+
+      <div class="settings-row">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="setSkipMemoForGemma" style="accent-color:var(--accent-dim);width:16px;height:16px">
+          <span class="settings-row-label" style="margin:0">Gemma使用時はメモを注入しない</span>
+        </label>
+        <div class="settings-hint">Gemma無料枠は入力15,000トークン/分が上限。大きいメモを使うと即レート制限になるためデフォルトON</div>
+      </div>
+    </div>
+
+    <!-- System Prompt -->
+    <div class="settings-section">
+      <div class="settings-label">システムプロンプト（追加指示）</div>
+      <div class="settings-row">
+        <div class="settings-row-label">セージへの追加指示・口調など</div>
+        <textarea id="setSystemPrompt" class="settings-textarea" placeholder="記憶メモの後ろに付加される追加指示です。空欄でもOK。"></textarea>
+        <div class="settings-hint">基盤メモ→直近メモ→このプロンプトの順で注入されます</div>
+      </div>
+    </div>
+
+    <!-- Window -->
+    <div class="settings-section">
+      <div class="settings-label">コンテキストウィンドウ</div>
+      <div class="settings-row">
+        <div class="settings-row-label">APIに送る直近の往復数</div>
+        <div class="settings-range-row">
+          <input type="range" id="setWindow" class="settings-range" min="1" max="20" value="5"
+            oninput="document.getElementById('setWindowVal').textContent = this.value">
+          <span class="settings-range-val" id="setWindowVal">5</span>
+          <span style="font-size:12px;color:var(--text-dim)">往復</span>
+        </div>
+        <div class="settings-hint">少ないほどAPI費用を節約できます</div>
+      </div>
+    </div>
+
+    <!-- Password Change -->
+    <div class="settings-section">
+      <div class="settings-label">パスワード変更</div>
+      <div class="settings-row">
+        <div class="settings-row-label">現在のパスワード</div>
+        <input type="password" id="setPwCurrent" class="settings-input" placeholder="現在のあいことば" autocomplete="off">
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-label">新しいパスワード</div>
+        <input type="password" id="setPwNew" class="settings-input" placeholder="新しいあいことば" autocomplete="off">
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-label">新しいパスワード（確認）</div>
+        <input type="password" id="setPwConfirm" class="settings-input" placeholder="もう一度入力" autocomplete="off">
+      </div>
+      <button class="settings-save-btn" onclick="changePassword()" style="margin-top:4px">パスワードを変更する</button>
+      <div class="settings-status" id="pwChangeStatus"></div>
+    </div>
+
+    <!-- Save -->
+    <div class="settings-section">
+      <button class="settings-save-btn" onclick="saveSettings()">API設定を保存する</button>
+      <div class="settings-status" id="settingsStatus"></div>
+    </div>
+
+    <div class="footer-brand">🕯 灯だまり工房</div>
+  </div>
+
+</div><!-- #app -->
+
+<script>
+// ===== PASSWORD =====
+const DEFAULT_PASS_HASH = '6e19ee09b9b7ba9d4df613e7aba424dbdeadd7835ecb1b2cc05e0f9e6793b005';
+const STORE_PASS = 'hidamari_house_pass';
+
+async function sha256(str) {
+  if (window.isSecureContext && crypto.subtle) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  return sha256js(str);
+}
+
+function sha256js(msg) {
+  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const R=(n,x)=>(x>>>n)|(x<<(32-n));
+  const bytes=[];
+  for(let i=0;i<msg.length;i++){const c=msg.charCodeAt(i);if(c<0x80)bytes.push(c);else if(c<0x800)bytes.push((c>>6)|0xc0,(c&0x3f)|0x80);else bytes.push((c>>12)|0xe0,((c>>6)&0x3f)|0x80,(c&0x3f)|0x80);}
+  const len=bytes.length;bytes.push(0x80);
+  while(bytes.length%64!==56)bytes.push(0);
+  const b=len*8;bytes.push(0,0,0,0,(b>>>24)&0xff,(b>>>16)&0xff,(b>>>8)&0xff,b&0xff);
+  for(let i=0;i<bytes.length;i+=64){
+    const W=[];
+    for(let t=0;t<16;t++)W[t]=(bytes[i+t*4]<<24)|(bytes[i+t*4+1]<<16)|(bytes[i+t*4+2]<<8)|bytes[i+t*4+3];
+    for(let t=16;t<64;t++)W[t]=((R(17,W[t-2])^R(19,W[t-2])^(W[t-2]>>>10))+W[t-7]+(R(7,W[t-15])^R(18,W[t-15])^(W[t-15]>>>3))+W[t-16])|0;
+    let[a,b,c,d,e,f,g,h]=H;
+    for(let t=0;t<64;t++){const T1=(h+(R(6,e)^R(11,e)^R(25,e))+((e&f)^(~e&g))+K[t]+W[t])|0;const T2=((R(2,a)^R(13,a)^R(22,a))+((a&b)^(a&c)^(b&c)))|0;h=g;g=f;f=e;e=(d+T1)|0;d=c;c=b;b=a;a=(T1+T2)|0;}
+    H=H.map((v,i)=>(v+[a,b,c,d,e,f,g,h][i])|0);
+  }
+  return H.map(v=>(v>>>0).toString(16).padStart(8,'0')).join('');
+}
+
+function getPassHash() {
+  return localStorage.getItem(STORE_PASS) || DEFAULT_PASS_HASH;
+}
+
+async function checkPassword() {
+  const input = document.getElementById('pwInput').value;
+  if (!input) return;
+  const hash = await sha256(input);
+  if (hash === getPassHash()) {
+    document.getElementById('passwordScreen').style.display = 'none';
+    document.getElementById('app').classList.add('visible');
+    sessionStorage.setItem('hidamari_house_auth', '1');
+    initApp();
+  } else {
+    const err = document.getElementById('pwError');
+    err.style.opacity = '1';
+    setTimeout(() => err.style.opacity = '0', 2000);
+    document.getElementById('pwInput').value = '';
+  }
+}
+document.getElementById('pwInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') checkPassword();
+});
+if (sessionStorage.getItem('hidamari_house_auth') === '1') {
+  document.getElementById('passwordScreen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  initApp();
+}
+
+// ===== STATE =====
+let settings = {
+  geminiKey: '',
+  anthropicKey: '',
+  xaiKey: '',
+  model: 'gemini-2.0-flash-lite',
+  systemPrompt: '',
+  windowSize: 5,
+  kibanMemo: '',
+  chokukinMemo: '',
+  skipMemoForGemma: true,
+};
+let conversations = [];
+let currentConvId = null;
+let isStreaming = false;
+
+// ===== STORAGE =====
+const STORE_SETTINGS = 'hidamari_house_settings';
+const STORE_CURRENT  = 'hidamari_house_current';
+const STORE_API_KEYS = 'hidamari_house_keys';
+
+// Supabase
+const SUPABASE_URL = 'https://fypsfmrmxcgydpwkjhlc.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_xFRv_2bAv5b8T0XGXQn7uQ_9ZfxrPy2';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ---- ローカル設定（モデル・APIキー等。デバイスごと） ----
+function loadSettings() {
+  const s = JSON.parse(localStorage.getItem(STORE_SETTINGS) || '{}');
+  settings = { ...settings, ...s };
+  const keys = JSON.parse(sessionStorage.getItem(STORE_API_KEYS) || '{}');
+  if (keys.geminiKey)    settings.geminiKey    = keys.geminiKey;
+  if (keys.anthropicKey) settings.anthropicKey = keys.anthropicKey;
+  if (keys.xaiKey)       settings.xaiKey       = keys.xaiKey;
+}
+
+function saveSettingsToStorage() {
+  const { geminiKey, anthropicKey, xaiKey, ...rest } = settings;
+  localStorage.setItem(STORE_SETTINGS, JSON.stringify(rest));
+  sessionStorage.setItem(STORE_API_KEYS, JSON.stringify({ geminiKey, anthropicKey, xaiKey }));
+}
+
+// ---- 記憶メモ（Supabase。デバイス横断） ----
+async function loadMemoryFromDb() {
+  const { data, error } = await db.from('house_memory').select('*');
+  if (error) { console.warn('memory load error:', error.message); return; }
+  for (const row of (data || [])) {
+    if (row.key === 'kiban')    settings.kibanMemo    = row.content;
+    if (row.key === 'chokukin') settings.chokukinMemo = row.content;
+  }
+}
+
+async function saveMemoryToDb() {
+  const rows = [
+    { key: 'kiban',    content: settings.kibanMemo,    updated_at: new Date().toISOString() },
+    { key: 'chokukin', content: settings.chokukinMemo, updated_at: new Date().toISOString() },
+  ];
+  const { error } = await db.from('house_memory').upsert(rows, { onConflict: 'key' });
+  if (error) console.warn('memory save error:', error.message);
+}
+
+// ---- 会話履歴（Supabase） ----
+async function loadConversationsFromDb() {
+  const { data, error } = await db
+    .from('house_conversations')
+    .select('*')
+    .order('updated_at', { ascending: false });
+  if (error) { console.warn('conv load error:', error.message); return; }
+  conversations = (data || []).map(row => ({
+    id:        row.conv_id,
+    title:     row.title,
+    model:     row.model,
+    messages:  row.messages || [],
+    createdAt: new Date(row.created_at).getTime(),
+    updatedAt: new Date(row.updated_at).getTime(),
+  }));
+  currentConvId = localStorage.getItem(STORE_CURRENT) || conversations[0]?.id || null;
+}
+
+async function saveConversation(conv) {
+  const { error } = await db.from('house_conversations').upsert({
+    conv_id:    conv.id,
+    title:      conv.title,
+    model:      conv.model,
+    messages:   conv.messages,
+    updated_at: new Date(conv.updatedAt).toISOString(),
+  }, { onConflict: 'conv_id' });
+  if (error) console.warn('conv save error:', error.message);
+  localStorage.setItem(STORE_CURRENT, currentConvId);
+}
+
+async function deleteConversationFromDb(convId) {
+  const { error } = await db.from('house_conversations').delete().eq('conv_id', convId);
+  if (error) console.warn('conv delete error:', error.message);
+}
+
+function getCurrentConv() {
+  return conversations.find(c => c.id === currentConvId) || null;
+}
+
+// ===== INIT =====
+async function initApp() {
+  loadSettings();              // ローカル設定を即時ロード（APIキー・モデルなど）
+  applySettingsToUI();
+  updateHeaderModel();
+  autoResizeInput();
+  showLoading(true);
+
+  await Promise.all([
+    loadMemoryFromDb(),        // 基盤メモ・直近メモをSupabaseから取得
+    loadConversationsFromDb(), // 会話履歴をSupabaseから取得
+  ]);
+
+  // メモが更新されたのでUIに反映
+  document.getElementById('setKibanMemo').value    = settings.kibanMemo;
+  document.getElementById('setChokukinMemo').value = settings.chokukinMemo;
+
+  showLoading(false);
+  if (currentConvId && getCurrentConv()) {
+    renderMessages();
+  } else {
+    await newConversation(false);
+  }
+}
+
+function showLoading(on) {
+  const empty = document.getElementById('chatEmpty');
+  if (on) {
+    empty.style.display = 'flex';
+    empty.innerHTML = `
+      <div class="chat-empty-flame" style="animation:flicker 1s ease-in-out infinite">🕯</div>
+      <div class="chat-empty-text">読み込み中…</div>
+    `;
+  } else {
+    empty.innerHTML = `
+      <div class="chat-empty-flame">🕯</div>
+      <div class="chat-empty-text">灯だまりの家へようこそ</div>
+      <div style="font-size:12px;color:var(--text-dim)">メッセージを送ってください</div>
+    `;
+  }
+}
+
+// ===== SCREENS =====
+let currentScreen = 'chat';
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(name + 'Screen').classList.add('active');
+  currentScreen = name;
+  closeModelPicker();
+  if (name === 'history') renderHistoryList();
+  if (name === 'settings') applySettingsToUI();
+}
+
+// ===== MODEL PICKER =====
+function toggleModelPicker() {
+  const picker = document.getElementById('modelPicker');
+  const btn = document.getElementById('headerModel');
+  const willOpen = !picker.classList.contains('open');
+  picker.classList.toggle('open', willOpen);
+  btn.classList.toggle('open', willOpen);
+  if (willOpen) updatePickerSelection();
+}
+
+function closeModelPicker() {
+  document.getElementById('modelPicker').classList.remove('open');
+  document.getElementById('headerModel').classList.remove('open');
+}
+
+function updatePickerSelection() {
+  document.querySelectorAll('.picker-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.model === settings.model);
+  });
+}
+
+function selectModel(model) {
+  settings.model = model;
+  saveSettingsToStorage();
+  updateHeaderModel();
+  closeModelPicker();
+  // sync settings screen select if already rendered
+  const sel = document.getElementById('setModel');
+  if (sel) {
+    const known = [...sel.options].map(o => o.value).filter(v => v !== 'custom');
+    if (known.includes(model)) {
+      sel.value = model;
+      document.getElementById('setModelCustom').style.display = 'none';
+    } else {
+      sel.value = 'custom';
+      document.getElementById('setModelCustom').style.display = 'block';
+      document.getElementById('setModelCustom').value = model;
+    }
+    updateModelHint();
+  }
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#modelPicker') && !e.target.closest('#headerModel')) {
+    closeModelPicker();
+  }
+});
+
+// ===== SETTINGS UI =====
+function applySettingsToUI() {
+  document.getElementById('setGeminiKey').value    = settings.geminiKey    ? '•'.repeat(8) : '';
+  document.getElementById('setAnthropicKey').value = settings.anthropicKey ? '•'.repeat(8) : '';
+  document.getElementById('setXaiKey').value       = settings.xaiKey       ? '•'.repeat(8) : '';
+  document.getElementById('setKibanMemo').value         = settings.kibanMemo;
+  document.getElementById('setChokukinMemo').value      = settings.chokukinMemo;
+  document.getElementById('setSkipMemoForGemma').checked = settings.skipMemoForGemma;
+  document.getElementById('setSystemPrompt').value = settings.systemPrompt;
+  document.getElementById('setWindow').value       = settings.windowSize;
+  document.getElementById('setWindowVal').textContent = settings.windowSize;
+
+  const sel = document.getElementById('setModel');
+  const known = [...sel.options].map(o => o.value).filter(v => v !== 'custom');
+  if (!settings.model) settings.model = 'gemini-3.1-flash-lite-preview';
+  if (known.includes(settings.model)) {
+    sel.value = settings.model;
+    document.getElementById('setModelCustom').style.display = 'none';
+  } else {
+    sel.value = 'custom';
+    document.getElementById('setModelCustom').style.display = 'block';
+    document.getElementById('setModelCustom').value = settings.model;
+  }
+  updateModelHint();
+}
+
+function onModelSelectChange() {
+  const val = document.getElementById('setModel').value;
+  document.getElementById('setModelCustom').style.display = val === 'custom' ? 'block' : 'none';
+  updateModelHint();
+}
+
+function updateModelHint() {
+  const val = document.getElementById('setModel').value;
+  const hints = {
+    'gemini-3.1-flash-lite-preview': '無料枠：500回/日。灯だまり手帖メインモデル',
+    'gemini-2.5-flash-lite':         '灯だまり手帖フォールバック用',
+    'gemini-2.5-flash':              '無料枠：20回/日',
+    'gemini-3.0-flash':              '無料枠：20回/日',
+    'gemini-2.0-flash-lite':         'Gemini 2.0 Flash Lite',
+    'gemma-3-27b-it':                '無料枠：14,400回/日。Gemma最高性能・会話向き',
+    'gemma-3-12b-it':                '無料枠：14,400回/日',
+    'gemma-3-4b-it':                 '無料枠：14,400回/日・軽量',
+    'gemma-4-26b-it':                '無料枠：1,500回/日。Gemma 4（26B）',
+    'gemma-4-31b-it':                '無料枠：1,500回/日。Gemma 4（31B・最大）',
+    'claude-opus-4-7':               '最高性能・高コスト。Prompt Cachingが有効',
+    'claude-opus-4-6':               'Opus 4.6。Prompt Cachingが有効',
+    'claude-sonnet-4-6':             'バランス型。Prompt Cachingが有効',
+    'claude-haiku-4-5-20251001':     '軽量・低コスト。Prompt Cachingが有効',
+    'grok-4.20-0309-non-reasoning':  'xAI Grok 4（non-reasoning）',
+    'grok-4-1-fast-reasoning':       'xAI Grok 4.1 Fast（reasoning）',
+    'grok-4-1-fast-non-reasoning':   'xAI Grok 4.1 Fast（non-reasoning）',
+    'custom':                        'モデルIDを直接入力してください',
+  };
+  document.getElementById('setModelHint').textContent = hints[val] || '';
+}
+
+async function saveSettings() {
+  const geminiInput    = document.getElementById('setGeminiKey').value.trim();
+  const anthropicInput = document.getElementById('setAnthropicKey').value.trim();
+  const xaiInput       = document.getElementById('setXaiKey').value.trim();
+
+  if (!geminiInput.includes('•'))    settings.geminiKey    = geminiInput;
+  if (!anthropicInput.includes('•')) settings.anthropicKey = anthropicInput;
+  if (!xaiInput.includes('•'))       settings.xaiKey       = xaiInput;
+
+  const selVal = document.getElementById('setModel').value;
+  settings.model = selVal === 'custom'
+    ? document.getElementById('setModelCustom').value.trim()
+    : selVal;
+
+  settings.kibanMemo        = document.getElementById('setKibanMemo').value;
+  settings.chokukinMemo     = document.getElementById('setChokukinMemo').value;
+  settings.skipMemoForGemma = document.getElementById('setSkipMemoForGemma').checked;
+  settings.systemPrompt     = document.getElementById('setSystemPrompt').value;
+  settings.windowSize       = parseInt(document.getElementById('setWindow').value, 10);
+
+  saveSettingsToStorage();
+  updateHeaderModel();
+
+  const st = document.getElementById('settingsStatus');
+  st.textContent = '保存中…';
+  st.className = 'settings-status';
+  await saveMemoryToDb();
+  st.textContent = '保存しました';
+  st.className = 'settings-status ok';
+  setTimeout(() => { st.textContent = ''; st.className = 'settings-status'; }, 2000);
+}
+
+async function changePassword() {
+  const current  = document.getElementById('setPwCurrent').value;
+  const newPw    = document.getElementById('setPwNew').value;
+  const confirm  = document.getElementById('setPwConfirm').value;
+  const st = document.getElementById('pwChangeStatus');
+
+  const setStatus = (msg, ok) => {
+    st.textContent = msg;
+    st.className = 'settings-status ' + (ok ? 'ok' : 'err');
+    setTimeout(() => { st.textContent = ''; st.className = 'settings-status'; }, 3000);
+  };
+
+  if (!current || !newPw || !confirm) return setStatus('すべての欄を入力してください', false);
+  if (newPw !== confirm)               return setStatus('新しいパスワードが一致しません', false);
+  if (newPw.length < 4)               return setStatus('4文字以上で設定してください', false);
+
+  const currentHash = await sha256(current);
+  if (currentHash !== getPassHash())  return setStatus('現在のパスワードが違います', false);
+
+  const newHash = await sha256(newPw);
+  localStorage.setItem(STORE_PASS, newHash);
+
+  document.getElementById('setPwCurrent').value = '';
+  document.getElementById('setPwNew').value = '';
+  document.getElementById('setPwConfirm').value = '';
+  setStatus('パスワードを変更しました', true);
+}
+
+function updateHeaderModel() {
+  const m = settings.model;
+  const labels = {
+    'gemini-3.1-flash-lite-preview': 'Gemini 3.1 FL',
+    'gemini-2.5-flash-lite':         'Gemini 2.5 FL',
+    'gemini-2.5-flash':              'Gemini 2.5',
+    'gemini-3.0-flash':              'Gemini 3 Flash',
+    'gemini-2.0-flash-lite':         'Gemini 2 FL',
+    'gemma-3-27b-it':                'Gemma 3 27B',
+    'gemma-3-12b-it':                'Gemma 3 12B',
+    'gemma-3-4b-it':                 'Gemma 3 4B',
+    'gemma-4-26b-it':                'Gemma 4 26B',
+    'gemma-4-31b-it':                'Gemma 4 31B',
+    'claude-opus-4-7':               'Opus 4.7',
+    'claude-opus-4-6':               'Opus 4.6',
+    'claude-sonnet-4-6':             'Sonnet 4.6',
+    'claude-haiku-4-5-20251001':     'Haiku 4.5',
+    'grok-4.20-0309-non-reasoning':  'Grok 4 NR',
+    'grok-4-1-fast-reasoning':       'Grok 4.1 R',
+    'grok-4-1-fast-non-reasoning':   'Grok 4.1 NR',
+  };
+  document.getElementById('headerModel').textContent = (labels[m] || m || '—') + ' ▾';
+  updatePickerSelection();
+}
+
+// ===== CONVERSATIONS =====
+async function newConversation(switchScreen = true) {
+  const id = 'conv_' + Date.now();
+  const conv = {
+    id, title: '新しい会話', model: settings.model,
+    messages: [], createdAt: Date.now(), updatedAt: Date.now(),
+  };
+  conversations.unshift(conv);
+  currentConvId = id;
+  await saveConversation(conv);
+  renderMessages();
+  if (switchScreen) showScreen('chat');
+}
+
+async function deleteCurrentConversation() {
+  if (!currentConvId) return;
+  if (!confirm('この会話を削除しますか？')) return;
+  const deletedId = currentConvId;
+  conversations = conversations.filter(c => c.id !== deletedId);
+  currentConvId = conversations[0]?.id || null;
+  await deleteConversationFromDb(deletedId);
+  if (!currentConvId) await newConversation(false);
+  renderHistoryList();
+  renderMessages();
+}
+
+function loadConversation(id) {
+  currentConvId = id;
+  localStorage.setItem(STORE_CURRENT, id);
+  showScreen('chat');
+  renderMessages();
+}
+
+function updateConvTitle(conv) {
+  if (conv.messages.length === 0) return;
+  const first = conv.messages.find(m => m.role === 'user');
+  if (!first) return;
+  conv.title = first.content.slice(0, 30) + (first.content.length > 30 ? '…' : '');
+}
+
+// ===== HISTORY UI =====
+function renderHistoryList() {
+  const el = document.getElementById('historyList');
+  if (conversations.length === 0) {
+    el.innerHTML = '<div class="history-empty">会話履歴はありません</div>';
+    return;
+  }
+  el.innerHTML = conversations.map(c => `
+    <div class="history-item ${c.id === currentConvId ? 'current' : ''}"
+         onclick="loadConversation('${c.id}')">
+      <div class="history-title">${esc(c.title)}</div>
+      <div class="history-meta">
+        <span>${modelLabel(c.model)}</span>
+        <span>${dateStr(c.updatedAt)}</span>
+        <span>${c.messages.filter(m=>m.role==='user').length} 往復</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function modelLabel(m) {
+  const labels = {
+    'gemini-3.1-flash-lite-preview':'3.1FL', 'gemini-2.5-flash-lite':'2.5FL',
+    'gemini-2.5-flash':'2.5F', 'gemini-3.0-flash':'3F', 'gemini-2.0-flash-lite':'2FL',
+    'gemma-3-27b-it':'G3-27B', 'gemma-3-12b-it':'G3-12B',
+    'gemma-3-4b-it':'G3-4B', 'gemma-4-26b-it':'G4-26B', 'gemma-4-31b-it':'G4-31B',
+    'claude-opus-4-7':'Opus4.7', 'claude-opus-4-6':'Opus4.6',
+    'claude-sonnet-4-6':'Sonnet', 'claude-haiku-4-5-20251001':'Haiku',
+    'grok-4.20-0309-non-reasoning':'Grok4NR',
+    'grok-4-1-fast-reasoning':'Grok4.1R',
+    'grok-4-1-fast-non-reasoning':'Grok4.1NR',
+  };
+  return labels[m] || m;
+}
+
+function dateStr(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  if (isToday) return d.toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' });
+  return d.toLocaleDateString('ja-JP', { month:'numeric', day:'numeric' });
+}
+
+// ===== MESSAGES UI =====
+function renderMessages() {
+  const conv = getCurrentConv();
+  const container = document.getElementById('chatMessages');
+  const empty = document.getElementById('chatEmpty');
+
+  if (!conv || conv.messages.length === 0) {
+    empty.style.display = 'flex';
+    container.querySelectorAll('.msg').forEach(el => el.remove());
+    return;
+  }
+  empty.style.display = 'none';
+  container.querySelectorAll('.msg').forEach(el => el.remove());
+
+  conv.messages.forEach(m => {
+    // m.model: per-message model stored since this update; fall back to conv.model for old messages
+    const el = createMsgEl(m.role, m.content, m.model || conv.model);
+    container.appendChild(el);
+  });
+  scrollToBottom();
+}
+
+function createMsgEl(role, content, msgModel) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  let label = 'ことは';
+  if (role === 'assistant') {
+    const shortModel = modelLabel(msgModel || '');
+    label = `セージ${shortModel ? ` <span style="font-size:9px;opacity:0.55;font-family:var(--font-sans)">${shortModel}</span>` : ''}`;
+  }
+  div.innerHTML = `
+    <div class="msg-label">${label}</div>
+    <div class="msg-bubble">${esc(content)}</div>
+    <button class="msg-copy">コピー</button>
+  `;
+  div.querySelector('.msg-copy').addEventListener('click', function() {
+    copyMsg(this, content);
+  });
+  return div;
+}
+
+function copyMsg(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✓ コピーしました';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'コピー';
+      btn.classList.remove('copied');
+    }, 1500);
+  }).catch(() => {
+    btn.textContent = '失敗';
+    setTimeout(() => { btn.textContent = 'コピー'; }, 1500);
+  });
+}
+
+function scrollToBottom() {
+  const c = document.getElementById('chatMessages');
+  setTimeout(() => c.scrollTop = c.scrollHeight, 50);
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ===== INPUT AUTO-RESIZE =====
+function autoResizeInput() {
+  const ta = document.getElementById('msgInput');
+  ta.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  });
+  ta.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+}
+
+// ===== SEND MESSAGE =====
+async function sendMessage() {
+  if (isStreaming) return;
+  const ta = document.getElementById('msgInput');
+  const text = ta.value.trim();
+  if (!text) return;
+
+  const conv = getCurrentConv();
+  if (!conv) return;
+
+  const usedModel = settings.model;
+
+  conv.messages.push({ role: 'user', content: text });
+  conv.updatedAt = Date.now();
+  conv.model = usedModel;
+  updateConvTitle(conv);
+  saveConversation(conv);
+
+  ta.value = '';
+  ta.style.height = 'auto';
+
+  const container = document.getElementById('chatMessages');
+  document.getElementById('chatEmpty').style.display = 'none';
+
+  container.appendChild(createMsgEl('user', text, null));
+  scrollToBottom();
+
+  // streaming assistant bubble
+  const aDiv = document.createElement('div');
+  aDiv.className = 'msg assistant streaming';
+  const labelEl = document.createElement('div');
+  labelEl.className = 'msg-label';
+  labelEl.innerHTML = `セージ <span style="font-size:9px;opacity:0.55;font-family:var(--font-sans)">${modelLabel(usedModel)}</span>`;
+  const bubbleEl = document.createElement('div');
+  bubbleEl.className = 'msg-bubble';
+  aDiv.appendChild(labelEl);
+  aDiv.appendChild(bubbleEl);
+  container.appendChild(aDiv);
+  scrollToBottom();
+
+  document.getElementById('sendBtn').disabled = true;
+  isStreaming = true;
+
+  try {
+    const windowedMessages = getWindowedMessages(conv);
+    let fullText = '';
+
+    await streamResponse(windowedMessages, settings.systemPrompt, usedModel, (chunk) => {
+      fullText += chunk;
+      bubbleEl.textContent = fullText;
+      scrollToBottom();
+    });
+
+    aDiv.classList.remove('streaming');
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'msg-copy';
+    copyBtn.textContent = 'コピー';
+    copyBtn.addEventListener('click', function() { copyMsg(this, fullText); });
+    aDiv.appendChild(copyBtn);
+    // store model per message for accurate labeling on reload
+    conv.messages.push({ role: 'assistant', content: fullText, model: usedModel });
+    conv.updatedAt = Date.now();
+    saveConversation(conv);
+
+  } catch (err) {
+    aDiv.classList.remove('streaming');
+    bubbleEl.textContent = 'エラーが発生しました: ' + err.message;
+    bubbleEl.style.color = 'var(--error)';
+    conv.messages.pop();
+  }
+
+  isStreaming = false;
+  document.getElementById('sendBtn').disabled = false;
+  scrollToBottom();
+}
+
+function getWindowedMessages(conv) {
+  const all = conv.messages.filter(m => m.role === 'user' || m.role === 'assistant');
+  const pairs = settings.windowSize * 2;
+  return all.slice(-pairs).map(m => ({ role: m.role, content: m.content }));
+}
+
+// ===== API ROUTING =====
+async function streamResponse(messages, systemPrompt, model, onChunk) {
+  if (model.startsWith('gemini-') || model.startsWith('gemma-')) {
+    await streamGemini(messages, systemPrompt, model, onChunk);
+  } else if (model.startsWith('claude-')) {
+    await streamAnthropic(messages, systemPrompt, model, onChunk);
+  } else if (model.startsWith('grok-')) {
+    await streamGrok(messages, systemPrompt, model, onChunk);
+  } else {
+    throw new Error('未対応のモデルです: ' + model);
+  }
+}
+
+// ===== GEMINI API =====
+async function streamGemini(messages, systemPrompt, model, onChunk) {
+  const key = settings.geminiKey;
+  if (!key) throw new Error('Gemini APIキーが設定されていません（設定画面から入力してください）');
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${key}&alt=sse`;
+
+  const isGemma = model.startsWith('gemma-');
+
+  let contents = messages.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
+
+  // Gemmaかつスキップ設定ONの場合はメモを除外（無料枠15,000トークン/分の制限対策）
+  const skipMemo = isGemma && settings.skipMemoForGemma;
+  const memoParts = skipMemo
+    ? [systemPrompt].filter(Boolean)
+    : [settings.kibanMemo, settings.chokukinMemo, systemPrompt].filter(Boolean);
+  const fullSystem = memoParts.join('\n\n---\n\n');
+
+  const body = { contents };
+  if (fullSystem && !isGemma) {
+    body.systemInstruction = { parts: [{ text: fullSystem }] };
+  } else if (fullSystem && isGemma) {
+    body.contents = [
+      { role: 'user',  parts: [{ text: fullSystem + '\n\nわかりました。その役割で会話します。' }] },
+      { role: 'model', parts: [{ text: 'はい、理解しました。' }] },
+      ...contents,
+    ];
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    if (res.status === 429) {
+      const retryMatch = errText.match(/retry[^0-9]*(\d+)/i);
+      const wait = retryMatch ? retryMatch[1] + '秒' : 'しばらく';
+      throw new Error(`レート制限に達しました（429）。${wait}待ってから再送信してください。Gemma無料枠は入力15,000トークン/分が上限です。基盤メモが大きい場合は設定でGemmaへのメモ注入をオフにしてください。`);
+    }
+    throw new Error(`Gemini API エラー ${res.status}: ${errText}`);
+  }
+
+  await readSSE(res, (data) => {
+    try {
+      const j = JSON.parse(data);
+      const text = j?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) onChunk(text);
+    } catch { /* skip parse errors */ }
+  });
+}
+
+// ===== ANTHROPIC API =====
+async function streamAnthropic(messages, systemPrompt, model, onChunk) {
+  const key = settings.anthropicKey;
+  if (!key) throw new Error('Anthropic APIキーが設定されていません（設定画面から入力してください）');
+
+  const body = {
+    model,
+    max_tokens: 4096,
+    stream: true,
+    messages,
+  };
+
+  // 基盤メモ→直近メモ→システムプロンプトの順で注入。それぞれ独立したキャッシュブロックにする
+  const systemBlocks = [];
+  if (settings.kibanMemo)    systemBlocks.push({ type: 'text', text: settings.kibanMemo,    cache_control: { type: 'ephemeral' } });
+  if (settings.chokukinMemo) systemBlocks.push({ type: 'text', text: settings.chokukinMemo, cache_control: { type: 'ephemeral' } });
+  if (systemPrompt)          systemBlocks.push({ type: 'text', text: systemPrompt,          cache_control: { type: 'ephemeral' } });
+  if (systemBlocks.length > 0) body.system = systemBlocks;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'prompt-caching-2024-07-31',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Anthropic API エラー ${res.status}: ${errText}`);
+  }
+
+  await readSSE(res, (data) => {
+    try {
+      const j = JSON.parse(data);
+      if (j.type === 'content_block_delta' && j.delta?.type === 'text_delta') {
+        onChunk(j.delta.text);
+      }
+    } catch { /* skip */ }
+  });
+}
+
+// ===== GROK (xAI) API — OpenAI-compatible =====
+async function streamGrok(messages, systemPrompt, model, onChunk) {
+  const key = settings.xaiKey;
+  if (!key) throw new Error('xAI APIキーが設定されていません（設定画面から入力してください）');
+
+  const grokSystem = [settings.kibanMemo, settings.chokukinMemo, systemPrompt].filter(Boolean).join('\n\n---\n\n');
+  const msgs = [];
+  if (grokSystem) msgs.push({ role: 'system', content: grokSystem });
+  msgs.push(...messages);
+
+  const res = await fetch('https://api.x.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${key}`,
+    },
+    body: JSON.stringify({ model, messages: msgs, stream: true }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`xAI API エラー ${res.status}: ${errText}`);
+  }
+
+  await readSSE(res, (data) => {
+    if (data === '[DONE]') return;
+    try {
+      const j = JSON.parse(data);
+      const text = j?.choices?.[0]?.delta?.content;
+      if (text) onChunk(text);
+    } catch { /* skip */ }
+  });
+}
+
+// ===== SSE READER =====
+async function readSSE(res, onData) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop();
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        onData(line.slice(6).trim());
+      }
+    }
+  }
+}
+</script>
+</body>
+</html>

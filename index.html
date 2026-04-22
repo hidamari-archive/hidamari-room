@@ -1476,7 +1476,7 @@ function scrollToBottom() {
 // ===== CACHE TIMER =====
 function startCacheTimer() {
   if (!settings.model.startsWith('claude-')) return;
-  cacheTimerEnd = Date.now() + 5 * 60 * 1000;
+  cacheTimerEnd = Date.now() + 60 * 60 * 1000;
   const bar = document.getElementById('cacheTimerBar');
   bar.style.display = 'block';
   bar.className = '';
@@ -1504,10 +1504,15 @@ function tickCacheTimer() {
     cacheTimerInterval = null;
     return;
   }
-  const mins = Math.floor(remaining / 60000);
+  const totalMins = Math.floor(remaining / 60000);
   const secs = Math.floor((remaining % 60000) / 1000);
-  bar.textContent = `♻ キャッシュ有効 ${mins}:${secs.toString().padStart(2, '0')}`;
-  bar.className = remaining < 60000 ? 'warning' : '';
+  const hrs = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  const timeStr = hrs > 0
+    ? `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    : `${mins}:${secs.toString().padStart(2, '0')}`;
+  bar.textContent = `♻ キャッシュ有効 ${timeStr}`;
+  bar.className = remaining < 5 * 60 * 1000 ? 'warning' : '';
 }
 
 function esc(s) {
@@ -1697,10 +1702,11 @@ async function streamAnthropic(messages, systemPrompt, model, onChunk) {
     messages,
   };
 
-  // 基盤メモ→直近メモ→システムプロンプトを結合して1ブロックでキャッシュ（分割すると各ブロックが1024トークン未満になりキャッシュされないため）
+  // 基盤メモ→直近メモ→システムプロンプトを結合して1ブロックでキャッシュ
+  // Claude 4系モデルは1時間キャッシュ(ttl:3600)が必要。ttl省略時は無視される場合がある
   const memoParts = [settings.kibanMemo, settings.chokukinMemo, systemPrompt].filter(Boolean);
   if (memoParts.length > 0) {
-    body.system = [{ type: 'text', text: memoParts.join('\n\n---\n\n'), cache_control: { type: 'ephemeral' } }];
+    body.system = [{ type: 'text', text: memoParts.join('\n\n---\n\n'), cache_control: { type: 'ephemeral', ttl: 3600 } }];
   }
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {

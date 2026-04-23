@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://unpkg.com/marked@9/marked.min.js"></script>
 <style>
 /* ===== RESET & BASE ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -575,6 +576,74 @@ html, body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
+/* ===== MARKDOWN ===== */
+.msg-bubble h1,.msg-bubble h2,.msg-bubble h3 {
+  font-family: var(--font-serif); font-weight: 600; margin: 12px 0 4px; line-height: 1.4;
+}
+.msg-bubble h1 { font-size: 17px; }
+.msg-bubble h2 { font-size: 15px; }
+.msg-bubble h3 { font-size: 14px; }
+.msg-bubble p { margin: 6px 0; }
+.msg-bubble p:first-child { margin-top: 0; }
+.msg-bubble p:last-child { margin-bottom: 0; }
+.msg-bubble ul,.msg-bubble ol { padding-left: 20px; margin: 6px 0; }
+.msg-bubble li { margin: 2px 0; }
+.msg-bubble code {
+  background: rgba(80,60,40,0.08); border-radius: 3px;
+  padding: 1px 5px; font-family: monospace; font-size: 12px;
+}
+.msg-bubble pre {
+  background: rgba(80,60,40,0.07); border-radius: 8px;
+  padding: 10px 12px; margin: 8px 0; overflow-x: auto;
+}
+.msg-bubble pre code { background: none; padding: 0; font-size: 12px; }
+.msg-bubble blockquote {
+  border-left: 3px solid var(--accent-dim); margin: 8px 0;
+  padding: 4px 12px; color: var(--text-dim); font-style: italic;
+}
+.msg-bubble strong { font-weight: 600; }
+.msg-bubble a { color: var(--accent-dim); }
+.msg-bubble hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+
+/* ===== REGENERATE BUTTON ===== */
+.msg-regen {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-dim); font-size: 11px; padding: 2px 8px;
+  cursor: pointer; margin-top: 4px; opacity: 0.6; transition: opacity 0.15s;
+}
+.msg-regen:active { opacity: 1; }
+
+/* ===== SESSION MEMO MODAL ===== */
+#memoModal {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(50,38,28,0.5); align-items: flex-end;
+}
+#memoModal.open { display: flex; }
+#memoModalBox {
+  background: var(--bg); width: 100%; max-height: 80vh;
+  border-radius: 20px 20px 0 0; padding: 20px 16px 32px;
+  display: flex; flex-direction: column; gap: 12px;
+  box-shadow: 0 -4px 24px rgba(80,60,40,0.15);
+}
+#memoModalTitle {
+  font-family: var(--font-serif); font-size: 15px; font-weight: 600; color: var(--text);
+}
+#memoModalContent {
+  flex: 1; overflow-y: auto; font-size: 13px; line-height: 1.7;
+  color: var(--text); background: var(--bg-input); border-radius: 10px;
+  padding: 12px; min-height: 120px; max-height: 50vh; white-space: pre-wrap;
+}
+#memoModalActions { display: flex; gap: 8px; }
+#memoModalActions button {
+  flex: 1; padding: 10px; border-radius: 10px; font-size: 13px;
+  cursor: pointer; border: 1px solid var(--border); background: var(--bg-card);
+  color: var(--text); transition: opacity 0.15s;
+}
+#memoModalActions button.primary {
+  background: var(--accent-bg); color: var(--accent); border-color: var(--accent-dim);
+}
+#memoModalActions button:active { opacity: 0.7; }
+
 /* ===== CACHE TIMER BAR ===== */
 #cacheTimerBar {
   display: none;
@@ -660,6 +729,7 @@ html, body {
     <span class="header-title">🕯</span>
     <button class="header-model" id="headerModel" onclick="toggleModelPicker()" title="モデルを切り替え">—</button>
     <button class="header-btn" title="新しい会話" onclick="newConversation()">✏️</button>
+    <button class="header-btn" title="セッションを締める" onclick="openMemoModal()">📋</button>
     <button class="header-btn" title="会話履歴" onclick="showScreen('history')">📚</button>
     <button class="header-btn" title="設定" onclick="showScreen('settings')">⚙️</button>
   </div>
@@ -875,6 +945,19 @@ html, body {
     <div class="footer-brand">🕯 灯だまり工房</div>
   </div>
 
+<!-- SESSION MEMO MODAL -->
+<div id="memoModal" onclick="if(event.target===this)closeMemoModal()">
+  <div id="memoModalBox">
+    <div id="memoModalTitle">📋 直近メモを生成中…</div>
+    <div id="memoModalContent"></div>
+    <div id="memoModalActions">
+      <button onclick="closeMemoModal()">閉じる</button>
+      <button class="primary" id="memoSaveBtn" onclick="saveMemoToSettings()" style="display:none">直近メモに保存</button>
+      <button id="memoCopyBtn" onclick="copyMemo()" style="display:none">コピー</button>
+    </div>
+  </div>
+</div>
+
 </div><!-- #app -->
 
 <script>
@@ -1047,6 +1130,7 @@ function getCurrentConv() {
 
 // ===== INIT =====
 async function initApp() {
+  setupMarked();
   loadSettings();              // ローカル設定を即時ロード（APIキー・モデルなど）
   applySettingsToUI();
   updateHeaderModel();
@@ -1124,7 +1208,7 @@ const PREMIUM_MODELS = ['gemini-3.1-pro-preview', 'claude-opus-4-7', 'claude-opu
 
 function selectModel(model) {
   if (PREMIUM_MODELS.includes(model)) {
-    const names = { 'gemini-3.1-pro-preview': 'Gemini 3.1 Pro（出力$12/1M）', 'claude-opus-4-7': 'Claude Opus 4.7（出力$75/1M）', 'claude-opus-4-6': 'Claude Opus 4.6（出力$75/1M）' };
+    const names = { 'gemini-3.1-pro-preview': 'Gemini 3.1 Pro（出力$12/1M）', 'claude-opus-4-7': 'Claude Opus 4.7（出力$25/1M）', 'claude-opus-4-6': 'Claude Opus 4.6（出力$25/1M）' };
     if (!confirm(`⚠️ ${names[model] || model} は高額モデルです。切り替えますか？`)) return;
   }
   settings.model = model;
@@ -1451,9 +1535,16 @@ function renderMessages() {
   empty.style.display = 'none';
   container.querySelectorAll('.msg').forEach(el => el.remove());
 
-  conv.messages.forEach(m => {
-    // m.model: per-message model stored since this update; fall back to conv.model for old messages
+  conv.messages.forEach((m, i) => {
     const el = createMsgEl(m.role, m.content, m.model || conv.model);
+    // 再生成ボタン：最後のassistantメッセージにのみ表示
+    if (m.role === 'assistant' && i === conv.messages.length - 1) {
+      const regenBtn = document.createElement('button');
+      regenBtn.className = 'msg-regen';
+      regenBtn.textContent = '↺ 再生成';
+      regenBtn.onclick = regenerateLastMessage;
+      el.appendChild(regenBtn);
+    }
     container.appendChild(el);
   });
   scrollToBottom();
@@ -1467,9 +1558,10 @@ function createMsgEl(role, content, msgModel) {
     const shortModel = modelLabel(msgModel || '');
     label = `セージ${shortModel ? ` <span style="font-size:9px;opacity:0.55;font-family:var(--font-sans)">${shortModel}</span>` : ''}`;
   }
+  const bubble = role === 'assistant' ? renderMarkdown(content) : esc(content);
   div.innerHTML = `
     <div class="msg-label">${label}</div>
-    <div class="msg-bubble">${esc(content)}</div>
+    <div class="msg-bubble">${bubble}</div>
     <button class="msg-copy" title="copy">${copyIcon()}</button>
   `;
   div.querySelector('.msg-copy').addEventListener('click', function() {
@@ -1570,6 +1662,17 @@ function autoResizeInput() {
   });
 }
 
+// ===== MARKDOWN =====
+function setupMarked() {
+  if (typeof marked === 'undefined') return;
+  marked.use({ breaks: true, gfm: true });
+}
+
+function renderMarkdown(text) {
+  if (typeof marked === 'undefined') return esc(text);
+  return marked.parse(text);
+}
+
 // ===== SEND MESSAGE =====
 async function sendMessage() {
   if (isStreaming) return;
@@ -1581,7 +1684,6 @@ async function sendMessage() {
   if (!conv) return;
 
   const usedModel = settings.model;
-
   conv.messages.push({ role: 'user', content: text });
   conv.updatedAt = Date.now();
   conv.model = usedModel;
@@ -1593,11 +1695,17 @@ async function sendMessage() {
 
   const container = document.getElementById('chatMessages');
   document.getElementById('chatEmpty').style.display = 'none';
-
   container.appendChild(createMsgEl('user', text, null));
   scrollToBottom();
 
-  // streaming assistant bubble
+  await streamAssistantResponse(conv);
+}
+
+// 共通ストリーム処理（sendMessage・再生成から呼ぶ）
+async function streamAssistantResponse(conv) {
+  const usedModel = settings.model;
+  const container = document.getElementById('chatMessages');
+
   const aDiv = document.createElement('div');
   aDiv.className = 'msg assistant streaming';
   const labelEl = document.createElement('div');
@@ -1624,13 +1732,21 @@ async function sendMessage() {
     });
 
     aDiv.classList.remove('streaming');
+    bubbleEl.innerHTML = renderMarkdown(fullText);
+
     const copyBtn = document.createElement('button');
     copyBtn.className = 'msg-copy';
     copyBtn.title = 'copy';
     copyBtn.innerHTML = copyIcon();
     copyBtn.addEventListener('click', function() { copyMsg(this, fullText); });
     aDiv.appendChild(copyBtn);
-    // store model per message for accurate labeling on reload
+
+    const regenBtn = document.createElement('button');
+    regenBtn.className = 'msg-regen';
+    regenBtn.textContent = '↺ 再生成';
+    regenBtn.onclick = regenerateLastMessage;
+    aDiv.appendChild(regenBtn);
+
     conv.messages.push({ role: 'assistant', content: fullText, model: usedModel });
     conv.updatedAt = Date.now();
     saveConversation(conv);
@@ -1640,12 +1756,95 @@ async function sendMessage() {
     aDiv.classList.remove('streaming');
     bubbleEl.textContent = 'エラーが発生しました: ' + err.message;
     bubbleEl.style.color = 'var(--error)';
-    conv.messages.pop();
   }
 
   isStreaming = false;
   document.getElementById('sendBtn').disabled = false;
   scrollToBottom();
+}
+
+// ===== REGENERATE =====
+async function regenerateLastMessage() {
+  if (isStreaming) return;
+  const conv = getCurrentConv();
+  if (!conv) return;
+  const last = conv.messages[conv.messages.length - 1];
+  if (!last || last.role !== 'assistant') return;
+
+  conv.messages.pop();
+  conv.updatedAt = Date.now();
+  saveConversation(conv);
+  renderMessages();
+  await streamAssistantResponse(conv);
+}
+
+// ===== SESSION MEMO MODAL =====
+let generatedMemoText = '';
+
+function openMemoModal() {
+  const conv = getCurrentConv();
+  if (!conv || conv.messages.length === 0) {
+    alert('会話がありません。'); return;
+  }
+  generatedMemoText = '';
+  document.getElementById('memoModalTitle').textContent = '📋 直近メモを生成中…';
+  document.getElementById('memoModalContent').textContent = '';
+  document.getElementById('memoSaveBtn').style.display = 'none';
+  document.getElementById('memoCopyBtn').style.display = 'none';
+  document.getElementById('memoModal').classList.add('open');
+  generateSessionMemo(conv);
+}
+
+function closeMemoModal() {
+  document.getElementById('memoModal').classList.remove('open');
+}
+
+async function generateSessionMemo(conv) {
+  const contentEl = document.getElementById('memoModalContent');
+  const usedModel = settings.model;
+
+  // 会話テキストを整形
+  const convoText = conv.messages
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map(m => `【${m.role === 'user' ? 'ことは' : 'セージ'}】\n${m.content}`)
+    .join('\n\n');
+
+  const memoPrompt = [
+    { role: 'user', content: `以下の会話を読んで、次のセッションへの申し送り「直近メモ」を作成してください。\n\n直近メモは：\n- 次のセッションでセージがすぐ文脈を把握できるよう、今回の会話の重要な流れ・感情・進展を簡潔にまとめたもの\n- セージ視点の申し送り書として書く（「ことはさんは〜」「今回は〜」など）\n- 日本語、500〜800字程度\n\n＝＝＝ 会話 ＝＝＝\n${convoText}\n＝＝＝\n\n直近メモ：` }
+  ];
+
+  try {
+    let fullText = '';
+    await streamResponse(memoPrompt, settings.systemPrompt, usedModel, (chunk) => {
+      fullText += chunk;
+      contentEl.textContent = fullText;
+    });
+    generatedMemoText = fullText;
+    document.getElementById('memoModalTitle').textContent = '📋 直近メモ（生成完了）';
+    document.getElementById('memoSaveBtn').style.display = '';
+    document.getElementById('memoCopyBtn').style.display = '';
+  } catch (err) {
+    contentEl.textContent = 'エラー: ' + err.message;
+    document.getElementById('memoModalTitle').textContent = '📋 生成に失敗しました';
+  }
+}
+
+async function saveMemoToSettings() {
+  if (!generatedMemoText) return;
+  settings.chokukinMemo = generatedMemoText;
+  // Supabaseにも保存
+  await db.from('house_memory').upsert({ key: 'chokukin', content: generatedMemoText, updated_at: new Date().toISOString() });
+  saveSettingsToStorage();
+  closeMemoModal();
+  alert('直近メモを保存しました。');
+}
+
+function copyMemo() {
+  if (!generatedMemoText) return;
+  navigator.clipboard.writeText(generatedMemoText).then(() => {
+    document.getElementById('memoCopyBtn').textContent = '✓ コピー完了';
+    setTimeout(() => { document.getElementById('memoCopyBtn').textContent = 'コピー'; }, 1500);
+  });
 }
 
 function getWindowedMessages(conv) {

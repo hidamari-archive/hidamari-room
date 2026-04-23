@@ -1661,7 +1661,7 @@ function autoResizeInput() {
     this.style.height = Math.min(this.scrollHeight, 120) + 'px';
   });
   ta.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) {
       e.preventDefault();
       sendMessage();
     }
@@ -1914,12 +1914,12 @@ function openKibanModal() {
   const isLite = kibanModel === MEMO_LITE_MODEL;
 
   if (isPremium) {
-    const ok = confirm(`現在のモデル（${kibanModel}）は高額です。基盤メモ生成には claude-sonnet-4-6 または gemini-3-flash-preview を推奨します。\n\ngemini-3-flash-preview に切り替えて実行しますか？`);
+    const ok = confirm(`現在のモデル（${kibanModel}）は高額です。基盤メモ生成には claude-sonnet-4-6 を推奨します。\n\nclaude-sonnet-4-6 に切り替えて実行しますか？`);
     if (!ok) return;
-    kibanModel = 'gemini-3-flash-preview';
+    kibanModel = 'claude-sonnet-4-6';
   } else if (isLite) {
-    const ok = confirm(`${kibanModel} は軽量モデルです。基盤メモの品質には claude-sonnet-4-6 または gemini-3-flash-preview を推奨します。\n\ngemini-3-flash-preview に切り替えて実行しますか？`);
-    if (ok) kibanModel = 'gemini-3-flash-preview';
+    const ok = confirm(`${kibanModel} は軽量モデルです。基盤メモの品質には claude-sonnet-4-6 を推奨します。\n\nclaude-sonnet-4-6 に切り替えて実行しますか？`);
+    if (ok) kibanModel = 'claude-sonnet-4-6';
   }
 
   generatedKibanText = '';

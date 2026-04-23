@@ -644,6 +644,13 @@ html, body {
 }
 #memoModalActions button:active { opacity: 0.7; }
 
+/* ===== KIBAN MEMO MODAL ===== */
+#kibanModal {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(50,38,28,0.5); align-items: flex-end;
+}
+#kibanModal.open { display: flex; }
+
 /* ===== CACHE TIMER BAR ===== */
 #cacheTimerBar {
   display: none;
@@ -840,7 +847,10 @@ html, body {
         <div class="settings-row-label">基盤メモ（長期記憶）</div>
         <textarea id="setKibanMemo" class="settings-textarea" style="min-height:220px"
           placeholder="sage kibanmemo の内容をここに貼ります。数章に一度更新。Anthropic系モデルではキャッシュされてコスト削減されます。"></textarea>
-        <div class="settings-hint">会話の先頭に自動挿入・Prompt Cachingで90%引き</div>
+        <div class="settings-hint" style="display:flex;justify-content:space-between;align-items:center">
+          <span>会話の先頭に自動挿入・Prompt Cachingで90%引き</span>
+          <button onclick="openKibanModal()" style="background:none;border:1px solid var(--border);border-radius:6px;font-size:11px;padding:2px 8px;color:var(--accent-dim);cursor:pointer;white-space:nowrap;margin-left:8px">🌿 更新草稿を生成</button>
+        </div>
       </div>
 
       <div class="settings-row">
@@ -925,6 +935,20 @@ html, body {
 
     <div class="footer-brand">🕯 灯だまり工房</div>
   </div>
+
+<!-- KIBAN MEMO MODAL -->
+<div id="kibanModal" onclick="if(event.target===this)closeKibanModal()">
+  <div id="memoModalBox">
+    <div id="kibanModalTitle">🌿 基盤メモ更新草稿を生成中…</div>
+    <div id="kibanModalHint" style="font-size:11px;color:var(--text-dim);margin-top:-6px"></div>
+    <div id="kibanModalContent" style="flex:1;overflow-y:auto;font-size:13px;line-height:1.7;color:var(--text);background:var(--bg-input);border-radius:10px;padding:12px;min-height:120px;max-height:50vh;white-space:pre-wrap"></div>
+    <div style="font-size:11px;color:var(--text-dim);text-align:center;padding:2px 0">内容を確認してから基盤メモ欄に貼り付けて保存してください</div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeKibanModal()" style="flex:1;padding:10px;border-radius:10px;font-size:13px;cursor:pointer;border:1px solid var(--border);background:var(--bg-card);color:var(--text)">閉じる</button>
+      <button id="kibanCopyBtn" onclick="copyKibanMemo()" style="flex:1;padding:10px;border-radius:10px;font-size:13px;cursor:pointer;border:1px solid var(--border);background:var(--bg-card);color:var(--text);display:none">コピー</button>
+    </div>
+  </div>
+</div>
 
 <!-- SESSION MEMO MODAL -->
 <div id="memoModal" onclick="if(event.target===this)closeMemoModal()">
@@ -1870,6 +1894,89 @@ function copyMemo() {
   navigator.clipboard.writeText(generatedMemoText).then(() => {
     document.getElementById('memoCopyBtn').textContent = '✓ コピー完了';
     setTimeout(() => { document.getElementById('memoCopyBtn').textContent = 'コピー'; }, 1500);
+  });
+}
+
+// ===== KIBAN MEMO MODAL =====
+let generatedKibanText = '';
+
+function openKibanModal() {
+  const kibanMemo = settings.kibanMemo || '';
+  const chokukinMemo = settings.chokukinMemo || '';
+  if (!kibanMemo && !chokukinMemo) {
+    alert('基盤メモと直近メモが両方空です。先にメモを入力してください。');
+    return;
+  }
+
+  let kibanModel = settings.model;
+  const KIBAN_RECOMMENDED = ['claude-sonnet-4-6', 'gemini-3-flash-preview'];
+  const isPremium = PREMIUM_MODELS.includes(kibanModel);
+  const isLite = kibanModel === MEMO_LITE_MODEL;
+
+  if (isPremium) {
+    const ok = confirm(`現在のモデル（${kibanModel}）は高額です。基盤メモ生成には claude-sonnet-4-6 または gemini-3-flash-preview を推奨します。\n\ngemini-3-flash-preview に切り替えて実行しますか？`);
+    if (!ok) return;
+    kibanModel = 'gemini-3-flash-preview';
+  } else if (isLite) {
+    const ok = confirm(`${kibanModel} は軽量モデルです。基盤メモの品質には claude-sonnet-4-6 または gemini-3-flash-preview を推奨します。\n\ngemini-3-flash-preview に切り替えて実行しますか？`);
+    if (ok) kibanModel = 'gemini-3-flash-preview';
+  }
+
+  generatedKibanText = '';
+  document.getElementById('kibanModalTitle').textContent = '🌿 基盤メモ更新草稿を生成中…';
+  document.getElementById('kibanModalHint').textContent = `使用モデル: ${kibanModel}`;
+  document.getElementById('kibanModalContent').textContent = '';
+  document.getElementById('kibanCopyBtn').style.display = 'none';
+  document.getElementById('kibanModal').classList.add('open');
+  generateKibanMemo(kibanModel);
+}
+
+function closeKibanModal() {
+  document.getElementById('kibanModal').classList.remove('open');
+}
+
+async function generateKibanMemo(kibanModel) {
+  const contentEl = document.getElementById('kibanModalContent');
+  const kibanMemo = settings.kibanMemo || '（未設定）';
+  const chokukinMemo = settings.chokukinMemo || '（未設定）';
+
+  const prompt = `あなたは記録の整理を手伝うアシスタントです。以下の【現在の基盤メモ】と【直近メモ（複数セッション分）】を読んで、基盤メモの更新草稿を作成してください。
+
+【現在の基盤メモ】
+${kibanMemo}
+
+【直近メモ（複数セッション分）】
+${chokukinMemo}
+
+---
+
+【作業指示】
+- 直近メモの新しい情報・変化・到達点を基盤メモに反映させる
+- 基盤メモの構造・文体・粒度をできるだけ保つ
+- 陳腐化した情報は削除または更新する
+- 追加すべき重要な概念・状態変化があれば自然に組み込む
+- 出力は更新後の基盤メモ本文のみ（説明文・前置き不要）`;
+
+  try {
+    let fullText = '';
+    await streamResponse(prompt, '', kibanModel, (chunk) => {
+      fullText += chunk;
+      contentEl.textContent = fullText;
+    });
+    generatedKibanText = fullText;
+    document.getElementById('kibanModalTitle').textContent = '🌿 基盤メモ更新草稿（生成完了）';
+    document.getElementById('kibanCopyBtn').style.display = '';
+  } catch (err) {
+    contentEl.textContent = 'エラー: ' + err.message;
+    document.getElementById('kibanModalTitle').textContent = '🌿 生成に失敗しました';
+  }
+}
+
+function copyKibanMemo() {
+  if (!generatedKibanText) return;
+  navigator.clipboard.writeText(generatedKibanText).then(() => {
+    document.getElementById('kibanCopyBtn').textContent = '✓ コピー完了';
+    setTimeout(() => { document.getElementById('kibanCopyBtn').textContent = 'コピー'; }, 1500);
   });
 }
 

@@ -787,19 +787,19 @@ html, body {
       <div class="settings-row">
         <div class="settings-row-label">Gemini APIキー（Google AI Studio）</div>
         <input type="password" id="setGeminiKey" class="settings-input" placeholder="AIza...">
-        <div class="settings-hint">gemini-3-flash-preview などに使用</div>
+        <div class="settings-hint">gemini-3-flash-preview などに使用　<a href="https://ai.google.dev/gemini-api/docs/pricing?hl=ja" target="_blank" rel="noopener" style="color:var(--accent-dim)">料金表↗</a></div>
       </div>
 
       <div class="settings-row">
         <div class="settings-row-label">Anthropic APIキー</div>
         <input type="password" id="setAnthropicKey" class="settings-input" placeholder="sk-ant-...">
-        <div class="settings-hint">Claude Opus / Sonnet / Haiku に使用</div>
+        <div class="settings-hint">Claude Opus / Sonnet / Haiku に使用　<a href="https://platform.claude.com/docs/ja/about-claude/pricing" target="_blank" rel="noopener" style="color:var(--accent-dim)">料金表↗</a></div>
       </div>
 
       <div class="settings-row">
         <div class="settings-row-label">xAI APIキー（Grok）</div>
         <input type="password" id="setXaiKey" class="settings-input" placeholder="xai-...">
-        <div class="settings-hint">Grok に使用（オプション）</div>
+        <div class="settings-hint">Grok に使用（オプション）　<a href="https://docs.x.ai/developers/models" target="_blank" rel="noopener" style="color:var(--accent-dim)">料金表↗</a></div>
       </div>
     </div>
 
@@ -915,25 +915,6 @@ html, body {
       </div>
       <button class="settings-save-btn" onclick="changePassword()" style="margin-top:4px">パスワードを変更する</button>
       <div class="settings-status" id="pwChangeStatus"></div>
-    </div>
-
-    <!-- Pricing Links -->
-    <div class="settings-section">
-      <div class="settings-label">料金・モデル情報</div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
-        <a href="https://ai.google.dev/gemini-api/docs/pricing?hl=ja" target="_blank" rel="noopener"
-           style="font-size:13px;color:var(--accent-dim);text-decoration:none;display:flex;align-items:center;gap:6px">
-          <span style="font-size:15px">🟢</span> Gemini 料金表（Google）
-        </a>
-        <a href="https://platform.claude.com/docs/ja/about-claude/pricing" target="_blank" rel="noopener"
-           style="font-size:13px;color:var(--accent-dim);text-decoration:none;display:flex;align-items:center;gap:6px">
-          <span style="font-size:15px">🟠</span> Claude 料金表（Anthropic）
-        </a>
-        <a href="https://docs.x.ai/developers/models" target="_blank" rel="noopener"
-           style="font-size:13px;color:var(--accent-dim);text-decoration:none;display:flex;align-items:center;gap:6px">
-          <span style="font-size:15px">⚫</span> Grok モデル・料金（xAI）
-        </a>
-      </div>
     </div>
 
     <!-- Save -->
@@ -1782,28 +1763,43 @@ async function regenerateLastMessage() {
 // ===== SESSION MEMO MODAL =====
 let generatedMemoText = '';
 
+const MEMO_LITE_MODEL = 'gemini-3.1-flash-lite-preview';
+
 function openMemoModal() {
   const conv = getCurrentConv();
   if (!conv || conv.messages.length === 0) {
     alert('会話がありません。'); return;
   }
+
+  // 高額または中量モデル使用中なら、軽量モデルへの切り替えを促す
+  let memoModel = settings.model;
+  const isHeavy = PREMIUM_MODELS.includes(memoModel);
+  const isMid = !isHeavy && !memoModel.startsWith('gemini-3.1-flash-lite') && !memoModel.startsWith('gemini-2.5-flash-lite');
+  if (isHeavy || isMid) {
+    const msg = isHeavy
+      ? `⚠️ 現在 ${memoModel}（高額モデル）を使用中です。\n直近メモの生成は会話全文を送信するため入力トークンが多くなります。\n\n${MEMO_LITE_MODEL} に切り替えて生成しますか？\n（キャンセルで中止）`
+      : `現在 ${memoModel} を使用中です。\n直近メモの生成は ${MEMO_LITE_MODEL} など軽量モデルが向いています。\n\n${MEMO_LITE_MODEL} に切り替えて生成しますか？\n（キャンセルで中止）`;
+    if (!confirm(msg)) return;
+    memoModel = MEMO_LITE_MODEL;
+  }
+
   generatedMemoText = '';
   document.getElementById('memoModalTitle').textContent = '📋 直近メモを生成中…';
-  document.getElementById('memoModalHint').textContent = `使用モデル: ${settings.model}　※ 軽量モデル（3.1 flash-lite など）推奨`;
+  document.getElementById('memoModalHint').textContent = `使用モデル: ${memoModel}`;
   document.getElementById('memoModalContent').textContent = '';
   document.getElementById('memoSaveBtn').style.display = 'none';
   document.getElementById('memoCopyBtn').style.display = 'none';
   document.getElementById('memoModal').classList.add('open');
-  generateSessionMemo(conv);
+  generateSessionMemo(conv, memoModel);
 }
 
 function closeMemoModal() {
   document.getElementById('memoModal').classList.remove('open');
 }
 
-async function generateSessionMemo(conv) {
+async function generateSessionMemo(conv, memoModel) {
   const contentEl = document.getElementById('memoModalContent');
-  const usedModel = settings.model;
+  const usedModel = memoModel || settings.model;
 
   // 会話テキストを整形
   const convoText = conv.messages
@@ -1854,12 +1850,19 @@ async function generateSessionMemo(conv) {
 
 async function saveMemoToSettings() {
   if (!generatedMemoText) return;
-  settings.chokukinMemo = generatedMemoText;
-  // Supabaseにも保存
-  await db.from('house_memory').upsert({ key: 'chokukin', content: generatedMemoText, updated_at: new Date().toISOString() });
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const timeStr = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+  const header = `── ${dateStr} ${timeStr} ──`;
+  const newContent = settings.chokukinMemo
+    ? `${header}\n${generatedMemoText}\n\n${settings.chokukinMemo}`
+    : `${header}\n${generatedMemoText}`;
+
+  settings.chokukinMemo = newContent;
+  await db.from('house_memory').upsert({ key: 'chokukin', content: newContent, updated_at: new Date().toISOString() });
   saveSettingsToStorage();
   closeMemoModal();
-  alert('直近メモを保存しました。');
+  alert('直近メモに追記しました。');
 }
 
 function copyMemo() {

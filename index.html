@@ -1959,7 +1959,8 @@ ${chokukinMemo}
 
   try {
     let fullText = '';
-    await streamResponse(prompt, '', kibanModel, (chunk) => {
+    const messages = [{ role: 'user', content: prompt }];
+    await streamResponse(messages, '', kibanModel, (chunk) => {
       fullText += chunk;
       contentEl.textContent = fullText;
     });

@@ -761,14 +761,15 @@ html, body {
 </head>
 <body>
 
-<!-- ===== PASSWORD SCREEN ===== -->
+<!-- ===== LOGIN SCREEN ===== -->
 <div id="passwordScreen">
   <div class="pw-flame">🕯</div>
   <div class="pw-title">灯だまりの家</div>
-  <div class="pw-subtitle">あいことばを入力してください</div>
-  <input type="password" id="pwInput" class="pw-input" placeholder="••••••" autocomplete="off">
-  <div class="pw-error" id="pwError">あいことばが違います</div>
-  <button class="pw-btn" onclick="checkPassword()">入室する</button>
+  <div class="pw-subtitle">メールアドレスとパスワードを入力してください</div>
+  <input type="email" id="pwEmail" class="pw-input" placeholder="メールアドレス" autocomplete="email" style="letter-spacing:0">
+  <input type="password" id="pwInput" class="pw-input" placeholder="パスワード" autocomplete="current-password">
+  <div class="pw-error" id="pwError">メールアドレスまたはパスワードが違います</div>
+  <button class="pw-btn" id="pwBtn" onclick="checkPassword()">入室する</button>
 </div>
 
 <!-- ===== APP ===== -->
@@ -1044,29 +1045,39 @@ function getPassHash() {
 }
 
 async function checkPassword() {
-  const input = document.getElementById('pwInput').value;
-  if (!input) return;
-  const hash = await sha256(input);
-  if (hash === getPassHash()) {
-    document.getElementById('passwordScreen').style.display = 'none';
-    document.getElementById('app').classList.add('visible');
-    sessionStorage.setItem('hidamari_house_auth', '1');
-    initApp();
-  } else {
+  const email = document.getElementById('pwEmail').value.trim();
+  const pass = document.getElementById('pwInput').value;
+  if (!email || !pass) return;
+  const btn = document.getElementById('pwBtn');
+  btn.disabled = true; btn.textContent = '確認中…';
+  const { error } = await db.auth.signInWithPassword({ email, password: pass });
+  btn.disabled = false; btn.textContent = '入室する';
+  if (error) {
     const err = document.getElementById('pwError');
     err.style.opacity = '1';
-    setTimeout(() => err.style.opacity = '0', 2000);
+    setTimeout(() => err.style.opacity = '0', 2500);
     document.getElementById('pwInput').value = '';
+  } else {
+    document.getElementById('passwordScreen').style.display = 'none';
+    document.getElementById('app').classList.add('visible');
+    initApp();
   }
 }
 document.getElementById('pwInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') checkPassword();
 });
-if (sessionStorage.getItem('hidamari_house_auth') === '1') {
-  document.getElementById('passwordScreen').style.display = 'none';
-  document.getElementById('app').classList.add('visible');
-  initApp();
-}
+document.getElementById('pwEmail').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('pwInput').focus();
+});
+(async () => {
+  const { data: { session } } = await db.auth.getSession();
+  if (session) {
+    document.getElementById('passwordScreen').style.display = 'none';
+    document.getElementById('app').classList.add('visible');
+    initApp();
+  }
+  db.auth.onAuthStateChange((_, s) => { if (!s) location.reload(); });
+})();
 
 // ===== STATE =====
 let settings = {

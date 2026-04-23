@@ -526,6 +526,15 @@ html, body {
   margin-top: 8px;
 }
 .settings-save-btn:active { opacity: 0.7; }
+.settings-save-sticky {
+  position: sticky;
+  bottom: -16px;
+  margin: 0 -16px -16px;
+  padding: 12px 16px 20px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  z-index: 10;
+}
 .settings-range-row {
   display: flex;
   align-items: center;
@@ -653,18 +662,10 @@ html, body {
 
   <!-- MODEL PICKER DROPDOWN -->
   <div id="modelPicker">
-    <div class="picker-group">Gemini（Google・無料枠あり）</div>
+    <div class="picker-group">Gemini（Google）</div>
     <div class="picker-item" data-model="gemini-3.1-flash-lite-preview" onclick="selectModel('gemini-3.1-flash-lite-preview')">gemini-3.1-flash-lite-preview</div>
-    <div class="picker-item" data-model="gemini-2.5-flash-lite" onclick="selectModel('gemini-2.5-flash-lite')">gemini-2.5-flash-lite</div>
-    <div class="picker-item" data-model="gemini-2.5-flash" onclick="selectModel('gemini-2.5-flash')">gemini-2.5-flash</div>
-    <div class="picker-item" data-model="gemini-3.0-flash" onclick="selectModel('gemini-3.0-flash')">gemini-3.0-flash</div>
-    <div class="picker-item" data-model="gemini-2.0-flash-lite" onclick="selectModel('gemini-2.0-flash-lite')">gemini-2.0-flash-lite</div>
-    <div class="picker-group">Gemma（Google・大容量無料）</div>
-    <div class="picker-item" data-model="gemma-3-27b-it" onclick="selectModel('gemma-3-27b-it')">gemma-3-27b-it</div>
-    <div class="picker-item" data-model="gemma-3-12b-it" onclick="selectModel('gemma-3-12b-it')">gemma-3-12b-it</div>
-    <div class="picker-item" data-model="gemma-3-4b-it" onclick="selectModel('gemma-3-4b-it')">gemma-3-4b-it</div>
-    <div class="picker-item" data-model="gemma-4-26b-it" onclick="selectModel('gemma-4-26b-it')">gemma-4-26b-it</div>
-    <div class="picker-item" data-model="gemma-4-31b-it" onclick="selectModel('gemma-4-31b-it')">gemma-4-31b-it</div>
+    <div class="picker-item" data-model="gemini-3-flash-preview" onclick="selectModel('gemini-3-flash-preview')">gemini-3-flash-preview</div>
+    <div class="picker-item" data-model="gemini-3.1-pro-preview" onclick="selectModel('gemini-3.1-pro-preview')">gemini-3.1-pro-preview</div>
     <div class="picker-group">Claude（Anthropic）</div>
     <div class="picker-item" data-model="claude-opus-4-7" onclick="selectModel('claude-opus-4-7')">claude-opus-4-7</div>
     <div class="picker-item" data-model="claude-opus-4-6" onclick="selectModel('claude-opus-4-6')">claude-opus-4-6</div>
@@ -712,7 +713,7 @@ html, body {
       <div class="settings-row">
         <div class="settings-row-label">Gemini APIキー（Google AI Studio）</div>
         <input type="password" id="setGeminiKey" class="settings-input" placeholder="AIza...">
-        <div class="settings-hint">gemini-2.0-flash-lite などに使用</div>
+        <div class="settings-hint">gemini-3-flash-preview などに使用</div>
       </div>
 
       <div class="settings-row">
@@ -734,19 +735,10 @@ html, body {
       <div class="settings-row">
         <div class="settings-row-label">使用モデル</div>
         <select id="setModel" class="settings-select" onchange="onModelSelectChange()">
-          <optgroup label="Gemini（Google）★無料枠あり">
-            <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview（500回/日）</option>
-            <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite（フォールバック用）</option>
-            <option value="gemini-2.5-flash">gemini-2.5-flash（20回/日）</option>
-            <option value="gemini-3.0-flash">gemini-3.0-flash（20回/日）</option>
-            <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
-          </optgroup>
-          <optgroup label="Gemma（Google・大容量無料）">
-            <option value="gemma-3-27b-it">gemma-3-27b-it（14,400回/日・最高性能）</option>
-            <option value="gemma-3-12b-it">gemma-3-12b-it（14,400回/日）</option>
-            <option value="gemma-3-4b-it">gemma-3-4b-it（14,400回/日・軽量）</option>
-            <option value="gemma-4-26b-it">gemma-4-26b-it（1,500回/日）</option>
-            <option value="gemma-4-31b-it">gemma-4-31b-it（1,500回/日・最大）</option>
+          <optgroup label="Gemini（Google）">
+            <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview（最安・軽量）</option>
+            <option value="gemini-3-flash-preview">gemini-3-flash-preview（バランス・高知性）</option>
+            <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview（最高性能・高コスト）</option>
           </optgroup>
           <optgroup label="Claude（Anthropic）">
             <option value="claude-opus-4-7">claude-opus-4-7（Opus最新）</option>
@@ -784,12 +776,11 @@ html, body {
         <div class="settings-hint">基盤メモの後ろに挿入・同じくキャッシュされます</div>
       </div>
 
-      <div class="settings-row">
+      <div class="settings-row" style="display:none">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
           <input type="checkbox" id="setSkipMemoForGemma" style="accent-color:var(--accent-dim);width:16px;height:16px">
           <span class="settings-row-label" style="margin:0">Gemma使用時はメモを注入しない</span>
         </label>
-        <div class="settings-hint">Gemma無料枠は入力15,000トークン/分が上限。大きいメモを使うと即レート制限になるためデフォルトON</div>
       </div>
 
       <div class="settings-row">
@@ -853,7 +844,7 @@ html, body {
     </div>
 
     <!-- Save -->
-    <div class="settings-section">
+    <div class="settings-section settings-save-sticky">
       <button class="settings-save-btn" onclick="saveSettings()">API設定を保存する</button>
       <div class="settings-status" id="settingsStatus"></div>
     </div>
@@ -931,7 +922,7 @@ let settings = {
   anthropicKey: '',
   cacheTtl: '5m',
   xaiKey: '',
-  model: 'gemini-2.0-flash-lite',
+  model: 'gemini-3-flash-preview',
   systemPrompt: '',
   windowSize: 5,
   kibanMemo: '',
@@ -1151,7 +1142,7 @@ function applySettingsToUI() {
 
   const sel = document.getElementById('setModel');
   const known = [...sel.options].map(o => o.value).filter(v => v !== 'custom');
-  if (!settings.model) settings.model = 'gemini-3.1-flash-lite-preview';
+  if (!settings.model) settings.model = 'gemini-3-flash-preview';
   if (known.includes(settings.model)) {
     sel.value = settings.model;
     document.getElementById('setModelCustom').style.display = 'none';
@@ -1172,16 +1163,9 @@ function onModelSelectChange() {
 function updateModelHint() {
   const val = document.getElementById('setModel').value;
   const hints = {
-    'gemini-3.1-flash-lite-preview': '無料枠：500回/日。灯だまり手帖メインモデル',
-    'gemini-2.5-flash-lite':         '灯だまり手帖フォールバック用',
-    'gemini-2.5-flash':              '無料枠：20回/日',
-    'gemini-3.0-flash':              '無料枠：20回/日',
-    'gemini-2.0-flash-lite':         'Gemini 2.0 Flash Lite',
-    'gemma-3-27b-it':                '無料枠：14,400回/日。Gemma最高性能・会話向き',
-    'gemma-3-12b-it':                '無料枠：14,400回/日',
-    'gemma-3-4b-it':                 '無料枠：14,400回/日・軽量',
-    'gemma-4-26b-it':                '無料枠：1,500回/日。Gemma 4（26B）',
-    'gemma-4-31b-it':                '無料枠：1,500回/日。Gemma 4（31B・最大）',
+    'gemini-3.1-flash-lite-preview': '最安・軽量（入力$0.25/1M）。さらっとした雑談向き',
+    'gemini-3-flash-preview':        '高知性・速度バランス型（入力$0.50/1M）。日常使いのメイン',
+    'gemini-3.1-pro-preview':        '最高性能・高コスト（出力$12/1M）。深い考察が必要な時に',
     'claude-opus-4-7':               '最高性能・高コスト。Prompt Cachingが有効',
     'claude-opus-4-6':               'Opus 4.6。Prompt Cachingが有効',
     'claude-sonnet-4-6':             'バランス型。Prompt Cachingが有効',
@@ -1260,15 +1244,8 @@ function updateHeaderModel() {
   const m = settings.model;
   const labels = {
     'gemini-3.1-flash-lite-preview': 'Gemini 3.1 FL',
-    'gemini-2.5-flash-lite':         'Gemini 2.5 FL',
-    'gemini-2.5-flash':              'Gemini 2.5',
-    'gemini-3.0-flash':              'Gemini 3 Flash',
-    'gemini-2.0-flash-lite':         'Gemini 2 FL',
-    'gemma-3-27b-it':                'Gemma 3 27B',
-    'gemma-3-12b-it':                'Gemma 3 12B',
-    'gemma-3-4b-it':                 'Gemma 3 4B',
-    'gemma-4-26b-it':                'Gemma 4 26B',
-    'gemma-4-31b-it':                'Gemma 4 31B',
+    'gemini-3-flash-preview':        'Gemini 3 Flash',
+    'gemini-3.1-pro-preview':        'Gemini 3.1 Pro',
     'claude-opus-4-7':               'Opus 4.7',
     'claude-opus-4-6':               'Opus 4.6',
     'claude-sonnet-4-6':             'Sonnet 4.6',
@@ -1405,10 +1382,7 @@ function renderHistoryList() {
 
 function modelLabel(m) {
   const labels = {
-    'gemini-3.1-flash-lite-preview':'3.1FL', 'gemini-2.5-flash-lite':'2.5FL',
-    'gemini-2.5-flash':'2.5F', 'gemini-3.0-flash':'3F', 'gemini-2.0-flash-lite':'2FL',
-    'gemma-3-27b-it':'G3-27B', 'gemma-3-12b-it':'G3-12B',
-    'gemma-3-4b-it':'G3-4B', 'gemma-4-26b-it':'G4-26B', 'gemma-4-31b-it':'G4-31B',
+    'gemini-3.1-flash-lite-preview':'3.1FL', 'gemini-3-flash-preview':'3F', 'gemini-3.1-pro-preview':'3.1Pro',
     'claude-opus-4-7':'Opus4.7', 'claude-opus-4-6':'Opus4.6',
     'claude-sonnet-4-6':'Sonnet', 'claude-haiku-4-5-20251001':'Haiku',
     'grok-4.20-0309-non-reasoning':'Grok4NR',

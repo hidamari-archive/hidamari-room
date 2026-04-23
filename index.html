@@ -779,7 +779,6 @@ html, body {
     <span class="header-title">🕯</span>
     <button class="header-model" id="headerModel" onclick="toggleModelPicker()" title="モデルを切り替え">—</button>
     <button class="header-btn" title="新しい会話" onclick="newConversation()">✏️</button>
-    <button class="header-btn" title="セッションを締める" onclick="openMemoModal()">📋</button>
     <button class="header-btn" title="会話履歴" onclick="showScreen('history')">📚</button>
     <button class="header-btn" title="設定" onclick="showScreen('settings')">⚙️</button>
   </div>
@@ -1541,6 +1540,9 @@ function renderHistoryList() {
           <button class="history-item-btn"
                   onclick="startRename('${c.id}');event.stopPropagation()"
                   title="タイトルを変更">✏️</button>
+          <button class="history-item-btn"
+                  onclick="openMemoModal('${c.id}');event.stopPropagation()"
+                  title="セッションを締める">📋</button>
           <button class="history-item-btn del"
                   onclick="deleteConversationById('${c.id}');event.stopPropagation()"
                   title="削除">🗑️</button>
@@ -1771,7 +1773,8 @@ async function maybeAutoSummarize(conv) {
       [{ role: 'user', content: prompt }],
       '会話の要約を作成するアシスタントです。',
       MEMO_LITE_MODEL,
-      chunk => { summaryText += chunk; }
+      chunk => { summaryText += chunk; },
+      { bareSystem: true, noCache: true }
     );
 
     const recentMsgs = chatMsgs.slice(-settings.windowSize * 2);
@@ -1896,8 +1899,8 @@ let generatedMemoText = '';
 
 const MEMO_LITE_MODEL = 'gemini-3.1-flash-lite-preview';
 
-function openMemoModal() {
-  const conv = getCurrentConv();
+function openMemoModal(convId) {
+  const conv = convId ? conversations.find(c => c.id === convId) : getCurrentConv();
   if (!conv || conv.messages.length === 0) {
     alert('会話がありません。'); return;
   }
@@ -2084,7 +2087,7 @@ STEP 3：統合して書く
     await streamResponse(messages, '', kibanModel, (chunk) => {
       fullText += chunk;
       contentEl.textContent = fullText;
-    });
+    }, { bareSystem: true, noCache: true });
     generatedKibanText = fullText;
     document.getElementById('kibanModalTitle').textContent = '🌿 基盤メモ更新草稿（生成完了）';
     document.getElementById('kibanCopyBtn').style.display = '';
@@ -2118,11 +2121,11 @@ function getWindowedMessages(conv) {
 }
 
 // ===== API ROUTING =====
-async function streamResponse(messages, systemPrompt, model, onChunk) {
+async function streamResponse(messages, systemPrompt, model, onChunk, options = {}) {
   if (model.startsWith('gemini-') || model.startsWith('gemma-')) {
     await streamGemini(messages, systemPrompt, model, onChunk);
   } else if (model.startsWith('claude-')) {
-    await streamAnthropic(messages, systemPrompt, model, onChunk);
+    await streamAnthropic(messages, systemPrompt, model, onChunk, options);
   } else if (model.startsWith('grok-')) {
     await streamGrok(messages, systemPrompt, model, onChunk);
   } else {
@@ -2188,7 +2191,7 @@ async function streamGemini(messages, systemPrompt, model, onChunk) {
 }
 
 // ===== ANTHROPIC API =====
-async function streamAnthropic(messages, systemPrompt, model, onChunk) {
+async function streamAnthropic(messages, systemPrompt, model, onChunk, options = {}) {
   const key = settings.anthropicKey;
   if (!key) throw new Error('Anthropic APIキーが設定されていません（設定画面から入力してください）');
 
@@ -2199,13 +2202,18 @@ async function streamAnthropic(messages, systemPrompt, model, onChunk) {
     messages,
   };
 
-  // 基盤メモ→直近メモ→システムプロンプトを結合して1ブロックでキャッシュ
-  const memoParts = [settings.kibanMemo, settings.chokukinMemo, systemPrompt].filter(Boolean);
+  // 基盤メモ→直近メモ→システムプロンプトを結合してキャッシュ（一回きりの生成タスクはnoCache）
+  const memoParts = options.bareSystem
+    ? [systemPrompt].filter(Boolean)
+    : [settings.kibanMemo, settings.chokukinMemo, systemPrompt].filter(Boolean);
   if (memoParts.length > 0) {
-    const cacheControl = settings.cacheTtl === '1h'
-      ? { type: 'ephemeral', ttl: '1h' }
-      : { type: 'ephemeral' };
-    body.system = [{ type: 'text', text: memoParts.join('\n\n---\n\n'), cache_control: cacheControl }];
+    const block = { type: 'text', text: memoParts.join('\n\n---\n\n') };
+    if (!options.noCache) {
+      block.cache_control = settings.cacheTtl === '1h'
+        ? { type: 'ephemeral', ttl: '1h' }
+        : { type: 'ephemeral' };
+    }
+    body.system = [block];
   }
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {

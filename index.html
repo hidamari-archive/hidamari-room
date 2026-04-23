@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>灯だまりの家</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
@@ -621,6 +622,9 @@ html, body {
 }
 .history-item-btn:active { opacity: 1; }
 .history-item-btn.pinned { opacity: 0.9; }
+.history-item-btn.del:active { color: var(--error); }
+.picker-item.premium { color: #b06020; }
+.picker-item.premium::after { content: ' ⚠️'; font-size: 11px; }
 .history-title-input {
   flex: 1;
   min-width: 0;
@@ -653,7 +657,7 @@ html, body {
 
   <!-- HEADER -->
   <div id="header">
-    <span class="header-title">🕯 灯だまりの家</span>
+    <span class="header-title">🕯</span>
     <button class="header-model" id="headerModel" onclick="toggleModelPicker()" title="モデルを切り替え">—</button>
     <button class="header-btn" title="新しい会話" onclick="newConversation()">✏️</button>
     <button class="header-btn" title="会話履歴" onclick="showScreen('history')">📚</button>
@@ -665,10 +669,10 @@ html, body {
     <div class="picker-group">Gemini（Google）</div>
     <div class="picker-item" data-model="gemini-3.1-flash-lite-preview" onclick="selectModel('gemini-3.1-flash-lite-preview')">gemini-3.1-flash-lite-preview</div>
     <div class="picker-item" data-model="gemini-3-flash-preview" onclick="selectModel('gemini-3-flash-preview')">gemini-3-flash-preview</div>
-    <div class="picker-item" data-model="gemini-3.1-pro-preview" onclick="selectModel('gemini-3.1-pro-preview')">gemini-3.1-pro-preview</div>
+    <div class="picker-item premium" data-model="gemini-3.1-pro-preview" onclick="selectModel('gemini-3.1-pro-preview')">gemini-3.1-pro-preview</div>
     <div class="picker-group">Claude（Anthropic）</div>
-    <div class="picker-item" data-model="claude-opus-4-7" onclick="selectModel('claude-opus-4-7')">claude-opus-4-7</div>
-    <div class="picker-item" data-model="claude-opus-4-6" onclick="selectModel('claude-opus-4-6')">claude-opus-4-6</div>
+    <div class="picker-item premium" data-model="claude-opus-4-7" onclick="selectModel('claude-opus-4-7')">claude-opus-4-7</div>
+    <div class="picker-item premium" data-model="claude-opus-4-6" onclick="selectModel('claude-opus-4-6')">claude-opus-4-6</div>
     <div class="picker-item" data-model="claude-sonnet-4-6" onclick="selectModel('claude-sonnet-4-6')">claude-sonnet-4-6</div>
     <div class="picker-item" data-model="claude-haiku-4-5-20251001" onclick="selectModel('claude-haiku-4-5-20251001')">claude-haiku-4-5</div>
     <div class="picker-group">Grok（xAI）</div>
@@ -1097,7 +1101,13 @@ function updatePickerSelection() {
   });
 }
 
+const PREMIUM_MODELS = ['gemini-3.1-pro-preview', 'claude-opus-4-7', 'claude-opus-4-6'];
+
 function selectModel(model) {
+  if (PREMIUM_MODELS.includes(model)) {
+    const names = { 'gemini-3.1-pro-preview': 'Gemini 3.1 Pro（出力$12/1M）', 'claude-opus-4-7': 'Claude Opus 4.7（出力$75/1M）', 'claude-opus-4-6': 'Claude Opus 4.6（出力$75/1M）' };
+    if (!confirm(`⚠️ ${names[model] || model} は高額モデルです。切り替えますか？`)) return;
+  }
   settings.model = model;
   saveSettingsToStorage();
   updateHeaderModel();
@@ -1272,16 +1282,21 @@ async function newConversation(switchScreen = true) {
   if (switchScreen) showScreen('chat');
 }
 
-async function deleteCurrentConversation() {
-  if (!currentConvId) return;
+async function deleteConversationById(id) {
+  if (!id) return;
   if (!confirm('この会話を削除しますか？')) return;
-  const deletedId = currentConvId;
-  conversations = conversations.filter(c => c.id !== deletedId);
-  currentConvId = conversations[0]?.id || null;
-  await deleteConversationFromDb(deletedId);
-  if (!currentConvId) await newConversation(false);
+  conversations = conversations.filter(c => c.id !== id);
+  if (currentConvId === id) {
+    currentConvId = conversations[0]?.id || null;
+    if (!currentConvId) await newConversation(false);
+    else renderMessages();
+  }
+  await deleteConversationFromDb(id);
   renderHistoryList();
-  renderMessages();
+}
+
+async function deleteCurrentConversation() {
+  await deleteConversationById(currentConvId);
 }
 
 function loadConversation(id) {
@@ -1369,6 +1384,9 @@ function renderHistoryList() {
           <button class="history-item-btn"
                   onclick="startRename('${c.id}');event.stopPropagation()"
                   title="タイトルを変更">✏️</button>
+          <button class="history-item-btn del"
+                  onclick="deleteConversationById('${c.id}');event.stopPropagation()"
+                  title="削除">🗑️</button>
         </div>
       </div>
       <div class="history-meta">

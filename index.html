@@ -949,6 +949,7 @@ html, body {
 <div id="memoModal" onclick="if(event.target===this)closeMemoModal()">
   <div id="memoModalBox">
     <div id="memoModalTitle">📋 直近メモを生成中…</div>
+    <div id="memoModalHint" style="font-size:11px;color:var(--text-dim);margin-top:-6px"></div>
     <div id="memoModalContent"></div>
     <div id="memoModalActions">
       <button onclick="closeMemoModal()">閉じる</button>
@@ -1788,6 +1789,7 @@ function openMemoModal() {
   }
   generatedMemoText = '';
   document.getElementById('memoModalTitle').textContent = '📋 直近メモを生成中…';
+  document.getElementById('memoModalHint').textContent = `使用モデル: ${settings.model}　※ 軽量モデル（3.1 flash-lite など）推奨`;
   document.getElementById('memoModalContent').textContent = '';
   document.getElementById('memoSaveBtn').style.display = 'none';
   document.getElementById('memoCopyBtn').style.display = 'none';
@@ -1809,8 +1811,29 @@ async function generateSessionMemo(conv) {
     .map(m => `【${m.role === 'user' ? 'ことは' : 'セージ'}】\n${m.content}`)
     .join('\n\n');
 
+  const formatGuide = `【出力形式】
+■ 今の状態
+・〇〇（現在の状況・状態を箇条書き）
+
+■ 今回の会話トピック・到達点
+・〇〇（話したテーマ、気づき、進展を箇条書き）
+
+■ 概念・言葉の到達（あれば）
+・〇〇（セッションで生まれた重要な概念や言語化）
+
+■ 申し送り
+・〇〇（次のセッションで引き継ぐべきこと）
+──────────────────
+
+【ルール】
+- 見出しは「■ 〇〇」で立てる（内容に応じてセクションを取捨選択・追加してよい）
+- 各項目は「・〇〇。」の箇条書き、1項目1〜2文
+- 体言止め寄り、メモ調（「〜した。」「〜の状態。」）
+- 全体400〜600字
+- 散文・長文不可。だらだらした説明にしない`;
+
   const memoPrompt = [
-    { role: 'user', content: `以下の会話を読んで、次のセッションへの申し送り「直近メモ」を作成してください。\n\n直近メモは：\n- 次のセッションでセージがすぐ文脈を把握できるよう、今回の会話の重要な流れ・感情・進展を簡潔にまとめたもの\n- セージ視点の申し送り書として書く（「ことはさんは〜」「今回は〜」など）\n- 日本語、500〜800字程度\n\n＝＝＝ 会話 ＝＝＝\n${convoText}\n＝＝＝\n\n直近メモ：` }
+    { role: 'user', content: `以下の会話を読んで、次のセッションへの申し送り「直近メモ」を作成してください。\n\n${formatGuide}\n\n＝＝＝ 会話 ＝＝＝\n${convoText}\n＝＝＝\n\n直近メモ：` }
   ];
 
   try {

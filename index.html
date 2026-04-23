@@ -847,6 +847,25 @@ html, body {
       <div class="settings-status" id="pwChangeStatus"></div>
     </div>
 
+    <!-- Pricing Links -->
+    <div class="settings-section">
+      <div class="settings-label">料金・モデル情報</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+        <a href="https://ai.google.dev/gemini-api/docs/pricing?hl=ja" target="_blank" rel="noopener"
+           style="font-size:13px;color:var(--accent-dim);text-decoration:none;display:flex;align-items:center;gap:6px">
+          <span style="font-size:15px">🟢</span> Gemini 料金表（Google）
+        </a>
+        <a href="https://platform.claude.com/docs/ja/about-claude/pricing" target="_blank" rel="noopener"
+           style="font-size:13px;color:var(--accent-dim);text-decoration:none;display:flex;align-items:center;gap:6px">
+          <span style="font-size:15px">🟠</span> Claude 料金表（Anthropic）
+        </a>
+        <a href="https://docs.x.ai/developers/models" target="_blank" rel="noopener"
+           style="font-size:13px;color:var(--accent-dim);text-decoration:none;display:flex;align-items:center;gap:6px">
+          <span style="font-size:15px">⚫</span> Grok モデル・料金（xAI）
+        </a>
+      </div>
+    </div>
+
     <!-- Save -->
     <div class="settings-section settings-save-sticky">
       <button class="settings-save-btn" onclick="saveSettings()">API設定を保存する</button>

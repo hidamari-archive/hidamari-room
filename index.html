@@ -303,6 +303,19 @@ html, body {
 .msg-copy.copied { opacity: 1; }
 .msg-copy svg { width: 13px; height: 13px; stroke: var(--text-dim); fill: none; }
 .msg-copy.copied svg { stroke: var(--accent-dark); }
+.msg.archived .msg-bubble { opacity: 0.45; }
+.msg.archived .msg-label { opacity: 0.45; }
+.msg.archived .msg-copy { display: none; }
+.archive-divider {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  padding: 6px 0;
+  border-top: 1px dashed var(--border-dim);
+  border-bottom: 1px dashed var(--border-dim);
+  margin: 6px 0 10px;
+}
 
 .chat-empty {
   flex: 1;
@@ -1112,16 +1125,23 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 function loadSettings() {
   const s = JSON.parse(localStorage.getItem(STORE_SETTINGS) || '{}');
   settings = { ...settings, ...s };
-  const keys = JSON.parse(sessionStorage.getItem(STORE_API_KEYS) || '{}');
-  if (keys.geminiKey)    settings.geminiKey    = keys.geminiKey;
-  if (keys.anthropicKey) settings.anthropicKey = keys.anthropicKey;
-  if (keys.xaiKey)       settings.xaiKey       = keys.xaiKey;
+  // sessionStorageを優先、なければlocalStorageにフォールバック（再起動後もキーを保持）
+  const sKeys = JSON.parse(sessionStorage.getItem(STORE_API_KEYS) || '{}');
+  const lKeys = JSON.parse(localStorage.getItem(STORE_API_KEYS)  || '{}');
+  const geminiKey    = sKeys.geminiKey    || lKeys.geminiKey    || '';
+  const anthropicKey = sKeys.anthropicKey || lKeys.anthropicKey || '';
+  const xaiKey       = sKeys.xaiKey       || lKeys.xaiKey       || '';
+  if (geminiKey)    settings.geminiKey    = geminiKey;
+  if (anthropicKey) settings.anthropicKey = anthropicKey;
+  if (xaiKey)       settings.xaiKey       = xaiKey;
 }
 
 function saveSettingsToStorage() {
   const { geminiKey, anthropicKey, xaiKey, ...rest } = settings;
   localStorage.setItem(STORE_SETTINGS, JSON.stringify(rest));
-  sessionStorage.setItem(STORE_API_KEYS, JSON.stringify({ geminiKey, anthropicKey, xaiKey }));
+  const keysJson = JSON.stringify({ geminiKey, anthropicKey, xaiKey });
+  sessionStorage.setItem(STORE_API_KEYS, keysJson);
+  localStorage.setItem(STORE_API_KEYS, keysJson); // 再起動後も要約が動くよう永続化
 }
 
 // ---- 記憶メモ（Supabase。デバイス横断） ----
@@ -1596,25 +1616,31 @@ function renderMessages() {
 
   if (!conv || conv.messages.length === 0) {
     empty.style.display = 'flex';
-    container.querySelectorAll('.msg').forEach(el => el.remove());
+    container.querySelectorAll('.msg, .archive-divider').forEach(el => el.remove());
     return;
   }
   empty.style.display = 'none';
-  container.querySelectorAll('.msg').forEach(el => el.remove());
+  container.querySelectorAll('.msg, .archive-divider').forEach(el => el.remove());
 
-  const hasSummary = conv.messages.some(m => m.role === 'summary');
-  if (hasSummary) {
-    const badge = document.createElement('div');
-    badge.className = 'summary-badge';
-    badge.textContent = '🗜️ 古い会話は要約されています';
-    container.appendChild(badge);
+  // アーカイブ済みメッセージを薄く表示
+  const archiveEntry = conv.messages.find(m => m.role === 'archive');
+  if (archiveEntry && archiveEntry.messages && archiveEntry.messages.length > 0) {
+    archiveEntry.messages.forEach(m => {
+      const el = createMsgEl(m.role, m.content, m.model || conv.model);
+      el.classList.add('archived');
+      container.appendChild(el);
+    });
+    const divider = document.createElement('div');
+    divider.className = 'archive-divider';
+    divider.textContent = '── ここから要約済み（AIには要約のみ送信） ──';
+    container.appendChild(divider);
   }
 
-  conv.messages.forEach((m, i) => {
-    if (m.role === 'summary') return;
+  // アクティブなメッセージを表示
+  const activeMsgs = conv.messages.filter(m => m.role === 'user' || m.role === 'assistant');
+  activeMsgs.forEach((m, i) => {
     const el = createMsgEl(m.role, m.content, m.model || conv.model);
-    // 再生成ボタン：最後のassistantメッセージにのみ表示
-    if (m.role === 'assistant' && i === conv.messages.length - 1) {
+    if (m.role === 'assistant' && i === activeMsgs.length - 1) {
       const regenBtn = document.createElement('button');
       regenBtn.className = 'msg-regen';
       regenBtn.textContent = '↺ 再生成';
@@ -1789,7 +1815,15 @@ async function maybeAutoSummarize(conv) {
     );
 
     const recentMsgs = chatMsgs.slice(-settings.windowSize * 2);
-    conv.messages = [{ role: 'summary', content: summaryText }, ...recentMsgs];
+
+    // 古いメッセージをアーカイブに退避（削除しない）
+    const existingArchive = conv.messages.find(m => m.role === 'archive');
+    const prevArchived = existingArchive ? existingArchive.messages : [];
+    conv.messages = [
+      { role: 'archive', messages: [...prevArchived, ...toSummarize] },
+      { role: 'summary', content: summaryText },
+      ...recentMsgs,
+    ];
     saveConversation(conv);
   } catch (e) {
     console.warn('自動要約に失敗しました:', e);

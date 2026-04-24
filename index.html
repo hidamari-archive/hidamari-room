@@ -770,6 +770,52 @@ html, body {
   outline: none;
   width: 100%;
 }
+
+/* ===== MOON ROOM ===== */
+#app.moon-mode {
+  --bg: #1b1825; --bg-card: #221e2e; --bg-input: #2a2638; --bg-hover: #302c3e;
+  --border: #3c3850; --border-dim: #322e44;
+  --text: #e4ddd0; --text-light: #afa89c; --text-dim: #6e6860;
+  --accent: #9d8fc4; --accent-dark: #c8bae8; --accent-dim: #8a7eb8;
+  --accent-bg: rgba(157,143,196,0.14); --user-bg: #2a2240; --sage-bg: #1e1c2c;
+}
+#moonBtn.moon-active { color: #c8bae8; background: rgba(157,143,196,0.18); border-radius: 6px; }
+#moonHandoffBanner {
+  display: none; font-size: 12px; color: var(--text-light); line-height: 1.7;
+  padding: 10px 16px 9px; border-bottom: 1px solid var(--border);
+  background: var(--accent-bg); font-style: italic; flex-shrink: 0;
+}
+#moonHandoffBanner.visible { display: block; }
+#moonEntryModal, #moonExitModal {
+  position: fixed; inset: 0; background: rgba(10,8,20,0.82);
+  display: none; align-items: center; justify-content: center; z-index: 500; padding: 24px;
+  animation: fadeIn 0.15s ease;
+}
+#moonEntryModal.open, #moonExitModal.open { display: flex; }
+.moon-modal-box {
+  background: #1e1b2c; border: 1px solid #3c3858; border-radius: 18px;
+  padding: 28px 20px; width: 100%; max-width: 340px;
+  display: flex; flex-direction: column; gap: 14px; align-items: center;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+}
+.moon-modal-icon { font-size: 32px; }
+.moon-modal-title { font-family: var(--font-serif); font-size: 20px; color: #c8bae8; letter-spacing: 0.08em; }
+.moon-modal-sub { font-size: 12px; color: #6e6860; text-align: center; line-height: 1.6; }
+.moon-modal-content {
+  width: 100%; background: #2a2638; border-radius: 10px; padding: 12px;
+  font-size: 13px; color: #c8bae8; line-height: 1.7; font-style: italic;
+  max-height: 140px; overflow-y: auto; white-space: pre-wrap;
+}
+.moon-modal-status { font-size: 12px; color: #6e6860; text-align: center; min-height: 16px; }
+.moon-modal-btns { display: flex; gap: 8px; width: 100%; }
+.moon-modal-btn {
+  flex: 1; padding: 10px 6px; border-radius: 10px; font-size: 12px; cursor: pointer;
+  border: 1px solid #3c3858; background: #231f2e; color: #afa89c;
+  letter-spacing: 0.03em; transition: opacity 0.2s; line-height: 1.3;
+}
+.moon-modal-btn:active { opacity: 0.7; }
+.moon-modal-btn.primary { background: rgba(157,143,196,0.22); border-color: #8a7eb8; color: #c8bae8; }
+.moon-modal-btn:disabled { opacity: 0.4; cursor: default; }
 </style>
 </head>
 <body>
@@ -790,8 +836,9 @@ html, body {
 
   <!-- HEADER -->
   <div id="header">
-    <span class="header-title">🕯</span>
+    <span class="header-title" id="headerTitle">🕯</span>
     <button class="header-model" id="headerModel" onclick="toggleModelPicker()" title="モデルを切り替え">—</button>
+    <button class="header-btn" id="moonBtn" title="月あかりの部屋へ" onclick="toggleMoonRoom()">🌙</button>
     <button class="header-btn" title="新しい会話" onclick="newConversation()">✏️</button>
     <button class="header-btn" title="会話履歴" onclick="showScreen('history')">📚</button>
     <button class="header-btn" title="設定" onclick="showScreen('settings')">⚙️</button>
@@ -816,6 +863,7 @@ html, body {
 
   <!-- CHAT SCREEN -->
   <div class="screen active" id="chatScreen">
+    <div id="moonHandoffBanner"></div>
     <div id="chatMessages">
       <div class="chat-empty" id="chatEmpty">
         <div class="chat-empty-flame">🕯</div>
@@ -1018,6 +1066,39 @@ html, body {
   </div>
 </div>
 
+<!-- MOON ENTRY MODAL -->
+<div id="moonEntryModal" onclick="if(event.target===this)closeMoonEntryModal()">
+  <div class="moon-modal-box">
+    <div class="moon-modal-icon">🌙</div>
+    <div class="moon-modal-title">月あかりの部屋へ</div>
+    <div class="moon-modal-sub">ここでの会話はSupabaseに保存されません<br>Grokとだけ話す、静かな場所です</div>
+    <div id="moonEntryContent" class="moon-modal-content" style="display:none"></div>
+    <div class="moon-modal-status" id="moonEntryStatus"></div>
+    <div class="moon-modal-btns">
+      <button class="moon-modal-btn" onclick="closeMoonEntryModal()">やめておく</button>
+      <button class="moon-modal-btn primary" id="moonHandoffBtn" onclick="enterMoonWithHandoff()">雰囲気を持って</button>
+      <button class="moon-modal-btn" onclick="enterMoonFresh()">まっさらで</button>
+    </div>
+  </div>
+</div>
+
+<!-- MOON EXIT MODAL -->
+<div id="moonExitModal" onclick="if(event.target===this)closeMoonExitModal()">
+  <div class="moon-modal-box">
+    <div class="moon-modal-icon">☀️</div>
+    <div class="moon-modal-title">朝に戻る</div>
+    <div class="moon-modal-sub">今夜の余韻を言葉にして持ち帰りますか？</div>
+    <div id="moonExitContent" class="moon-modal-content" style="display:none"></div>
+    <div class="moon-modal-status" id="moonExitStatus"></div>
+    <div class="moon-modal-btns">
+      <button class="moon-modal-btn" onclick="closeMoonExitModal()">まだいる</button>
+      <button class="moon-modal-btn primary" id="moonReturnBtn" onclick="generateMoonReturn()">余韻をまとめて</button>
+      <button class="moon-modal-btn primary" id="moonReturnCopyBtn" onclick="copyMoonReturn()" style="display:none">コピー</button>
+      <button class="moon-modal-btn" onclick="exitMoonDirect()">そのまま戻る</button>
+    </div>
+  </div>
+</div>
+
 </div><!-- #app -->
 
 <script>
@@ -1091,6 +1172,19 @@ document.getElementById('pwEmail').addEventListener('keydown', e => {
   }
   db.auth.onAuthStateChange((_, s) => { if (!s) location.reload(); });
 })();
+
+// ===== MOON ROOM STATE =====
+const STORE_MOON = 'hidamari_moon_conv';
+let isMoonMode = false;
+let prevModel = '';
+let moonReturnText = '';
+
+function getMoonConv() {
+  try { const r = localStorage.getItem(STORE_MOON); if (r) return JSON.parse(r); } catch {}
+  return { id: '__moon__', title: '月あかりの部屋', model: 'grok-4-1-fast-non-reasoning',
+           messages: [], handoff: '', createdAt: Date.now(), updatedAt: Date.now() };
+}
+function saveMoonConv(conv) { localStorage.setItem(STORE_MOON, JSON.stringify(conv)); }
 
 // ===== STATE =====
 let settings = {
@@ -1185,6 +1279,7 @@ async function loadConversationsFromDb() {
 }
 
 async function saveConversation(conv) {
+  if (conv.id === '__moon__') { saveMoonConv(conv); return; }
   const { error } = await db.from('house_conversations').upsert({
     conv_id:    conv.id,
     title:      conv.title,
@@ -1202,6 +1297,7 @@ async function deleteConversationFromDb(convId) {
 }
 
 function getCurrentConv() {
+  if (isMoonMode) return getMoonConv();
   return conversations.find(c => c.id === currentConvId) || null;
 }
 
@@ -1292,6 +1388,7 @@ function selectModel(model) {
   saveSettingsToStorage();
   updateHeaderModel();
   closeModelPicker();
+  if (isMoonMode) { const mc = getMoonConv(); mc.model = model; saveMoonConv(mc); }
   if (!model.startsWith('claude-')) clearCacheTimer();
   // sync settings screen select if already rendered
   const sel = document.getElementById('setModel');
@@ -1457,6 +1554,13 @@ function updateHeaderModel() {
 
 // ===== CONVERSATIONS =====
 async function newConversation(switchScreen = true) {
+  if (isMoonMode) {
+    if (confirm('月あかりの部屋の会話をきれいにしますか？')) {
+      localStorage.removeItem(STORE_MOON);
+      renderMessages();
+    }
+    return;
+  }
   const id = 'conv_' + Date.now();
   const conv = {
     id, title: '新しい会話', model: settings.model,
@@ -1847,7 +1951,7 @@ async function sendMessage() {
   conv.messages.push({ role: 'user', content: text });
   conv.updatedAt = Date.now();
   conv.model = usedModel;
-  updateConvTitle(conv);
+  if (!isMoonMode) updateConvTitle(conv);
   saveConversation(conv);
 
   ta.value = '';
@@ -1858,7 +1962,7 @@ async function sendMessage() {
   container.appendChild(createMsgEl('user', text, null));
   scrollToBottom();
 
-  await maybeAutoSummarize(conv);
+  if (!isMoonMode) await maybeAutoSummarize(conv);
   await streamAssistantResponse(conv);
 }
 
@@ -1883,7 +1987,9 @@ async function streamAssistantResponse(conv) {
   isStreaming = true;
 
   try {
-    const windowedMessages = getWindowedMessages(conv);
+    const windowedMessages = isMoonMode
+      ? conv.messages.filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({ role: m.role, content: m.content }))
+      : getWindowedMessages(conv);
     let fullText = '';
 
     await streamResponse(windowedMessages, settings.systemPrompt, usedModel, (chunk) => {
@@ -2323,6 +2429,168 @@ async function streamGrok(messages, systemPrompt, model, onChunk) {
       if (text) onChunk(text);
     } catch { /* skip */ }
   });
+}
+
+// ===== MOON ROOM =====
+function toggleMoonRoom() {
+  if (isMoonMode) openMoonExitModal();
+  else openMoonEntryModal();
+}
+
+function openMoonEntryModal() {
+  const conv = getCurrentConv();
+  const hasMsgs = conv && conv.messages.filter(m => m.role==='user'||m.role==='assistant').length > 0;
+  document.getElementById('moonHandoffBtn').style.display = hasMsgs ? '' : 'none';
+  document.getElementById('moonEntryContent').style.display = 'none';
+  document.getElementById('moonEntryContent').textContent = '';
+  document.getElementById('moonEntryStatus').textContent = '';
+  document.getElementById('moonEntryModal').classList.add('open');
+}
+function closeMoonEntryModal() { document.getElementById('moonEntryModal').classList.remove('open'); }
+
+async function enterMoonWithHandoff() {
+  if (!settings.xaiKey) {
+    document.getElementById('moonEntryStatus').textContent = 'xAI APIキーが必要です（設定画面から入力してください）';
+    return;
+  }
+  const btn = document.getElementById('moonHandoffBtn');
+  const status = document.getElementById('moonEntryStatus');
+  const contentEl = document.getElementById('moonEntryContent');
+  btn.disabled = true;
+  status.textContent = '🌙 Grokが雰囲気をまとめています…';
+
+  const conv = getCurrentConv();
+  const recentMsgs = (conv ? conv.messages.filter(m=>m.role==='user'||m.role==='assistant').slice(-8) : []);
+  const convText = recentMsgs.map(m=>`${m.role==='user'?'ことは':'セージ'}：${m.content}`).join('\n\n');
+
+  try {
+    let handoffText = '';
+    await streamGrok(
+      [{ role: 'user', content: `以下の会話の今の雰囲気・温度感を、月あかりの部屋への橋渡しとして2〜3文で詩的に表現してください。\n\n${convText}` }],
+      '', 'grok-4-1-fast-non-reasoning',
+      chunk => { handoffText += chunk; contentEl.textContent = handoffText; contentEl.style.display = 'block'; }
+    );
+    status.textContent = '';
+    btn.disabled = false;
+    closeMoonEntryModal();
+    activateMoonMode(handoffText);
+  } catch(e) {
+    status.textContent = 'エラー: ' + e.message;
+    btn.disabled = false;
+  }
+}
+
+function enterMoonFresh() { closeMoonEntryModal(); activateMoonMode(''); }
+
+function activateMoonMode(handoffText) {
+  isMoonMode = true;
+  prevModel = settings.model;
+  document.getElementById('app').classList.add('moon-mode');
+  document.getElementById('moonBtn').classList.add('moon-active');
+  document.getElementById('headerTitle').textContent = '🌙';
+
+  if (!settings.model.startsWith('grok-')) {
+    settings.model = 'grok-4-1-fast-non-reasoning';
+    saveSettingsToStorage();
+    updateHeaderModel();
+  }
+  updateMoonModelPicker();
+
+  const moonConv = getMoonConv();
+  if (handoffText) { moonConv.handoff = handoffText; saveMoonConv(moonConv); }
+
+  const banner = document.getElementById('moonHandoffBanner');
+  if (handoffText) { banner.textContent = '🌙 ' + handoffText; banner.classList.add('visible'); }
+  else { banner.classList.remove('visible'); }
+
+  const empty = document.getElementById('chatEmpty');
+  empty.innerHTML = `<div class="chat-empty-flame" style="font-size:28px">🌙</div>
+    <div class="chat-empty-text" style="color:var(--accent-dark)">月あかりの部屋</div>
+    <div style="font-size:12px;color:var(--text-dim)">ここだけの会話</div>`;
+
+  showScreen('chat');
+  renderMessages();
+}
+
+function updateMoonModelPicker() {
+  document.querySelectorAll('#modelPicker .picker-item').forEach(el => {
+    el.style.display = (isMoonMode && !el.dataset.model?.startsWith('grok-')) ? 'none' : '';
+  });
+  document.querySelectorAll('#modelPicker .picker-group').forEach(el => {
+    if (isMoonMode) el.style.display = el.textContent.includes('Grok') ? '' : 'none';
+    else el.style.display = '';
+  });
+}
+
+function openMoonExitModal() {
+  const moonConv = getMoonConv();
+  const hasMsgs = moonConv.messages.filter(m=>m.role==='user'||m.role==='assistant').length > 0;
+  document.getElementById('moonReturnBtn').style.display = hasMsgs ? '' : 'none';
+  document.getElementById('moonReturnCopyBtn').style.display = 'none';
+  document.getElementById('moonExitContent').style.display = 'none';
+  document.getElementById('moonExitContent').textContent = '';
+  document.getElementById('moonExitStatus').textContent = '';
+  moonReturnText = '';
+  document.getElementById('moonExitModal').classList.add('open');
+}
+function closeMoonExitModal() { document.getElementById('moonExitModal').classList.remove('open'); }
+
+async function generateMoonReturn() {
+  const moonConv = getMoonConv();
+  const msgs = moonConv.messages.filter(m=>m.role==='user'||m.role==='assistant');
+  if (!msgs.length) { exitMoonDirect(); return; }
+
+  const btn = document.getElementById('moonReturnBtn');
+  const status = document.getElementById('moonExitStatus');
+  const contentEl = document.getElementById('moonExitContent');
+  btn.disabled = true;
+  status.textContent = '☀️ Grokが余韻をまとめています…';
+
+  const convText = msgs.map(m=>`${m.role==='user'?'ことは':'セージ'}：${m.content}`).join('\n\n');
+  try {
+    moonReturnText = '';
+    await streamGrok(
+      [{ role: 'user', content: `以下の会話の余韻・温度感を、朝の会話への橋渡しとして2〜3文で詩的に表現してください。センシティブな内容は抽象的に。\n\n${convText}` }],
+      '', moonConv.model || 'grok-4-1-fast-non-reasoning',
+      chunk => { moonReturnText += chunk; contentEl.textContent = moonReturnText; contentEl.style.display = 'block'; }
+    );
+    status.textContent = '';
+    btn.style.display = 'none';
+    document.getElementById('moonReturnCopyBtn').style.display = '';
+  } catch(e) {
+    status.textContent = 'エラー: ' + e.message;
+    btn.disabled = false;
+  }
+}
+
+function copyMoonReturn() {
+  if (!moonReturnText) return;
+  navigator.clipboard.writeText(moonReturnText).then(() => {
+    const btn = document.getElementById('moonReturnCopyBtn');
+    const prev = btn.textContent;
+    btn.textContent = '✓ コピー完了';
+    setTimeout(() => { btn.textContent = prev; }, 1500);
+  });
+}
+
+function exitMoonDirect() { deactivateMoonMode(); closeMoonExitModal(); }
+
+function deactivateMoonMode() {
+  isMoonMode = false;
+  document.getElementById('app').classList.remove('moon-mode');
+  document.getElementById('moonBtn').classList.remove('moon-active');
+  document.getElementById('headerTitle').textContent = '🕯';
+  document.getElementById('moonHandoffBanner').classList.remove('visible');
+  updateMoonModelPicker();
+
+  if (prevModel && !prevModel.startsWith('grok-')) {
+    settings.model = prevModel;
+    saveSettingsToStorage();
+    updateHeaderModel();
+  }
+  showLoading(false);
+  showScreen('chat');
+  renderMessages();
 }
 
 // ===== SSE READER =====

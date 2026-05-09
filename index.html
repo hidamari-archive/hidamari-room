@@ -865,7 +865,7 @@ html, body {
     <button class="header-btn" id="moonBtn" title="月あかりの部屋へ" onclick="toggleMoonRoom()">🌙</button>
     <button class="header-btn" title="新しい会話" onclick="newConversation()">✏️</button>
     <button class="header-btn" title="会話履歴" onclick="showScreen('history')">📚</button>
-    <button class="header-btn" title="設定" onclick="showScreen('settings')">⚙️</button>
+    <button class="header-btn" title="設定" onclick="currentScreen==='settings'?showScreen('chat'):showScreen('settings')">⚙️</button>
   </div>
 
   <!-- MODEL PICKER DROPDOWN -->

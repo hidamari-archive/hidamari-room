@@ -1620,6 +1620,11 @@ async function deleteCurrentConversation() {
 }
 
 function loadConversation(id) {
+  const prev = conversations.find(c => c.id === currentConvId);
+  if (prev && prev.id !== id && prev.messages.filter(m => m.role === 'user' || m.role === 'assistant').length === 0) {
+    conversations = conversations.filter(c => c.id !== prev.id);
+    deleteConversationFromDb(prev.id);
+  }
   currentConvId = id;
   localStorage.setItem(STORE_CURRENT, id);
   showScreen('chat');

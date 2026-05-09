@@ -839,6 +839,7 @@ html, body {
 .moon-modal-btn:active { opacity: 0.7; }
 .moon-modal-btn.primary { background: rgba(157,143,196,0.22); border-color: #8a7eb8; color: #c8bae8; }
 .moon-modal-btn:disabled { opacity: 0.4; cursor: default; }
+.moon-modal-btn.danger { color: #c4a0a8; border-color: #6a4854; background: rgba(180,100,120,0.10); }
 </style>
 </head>
 <body>
@@ -1115,6 +1116,7 @@ html, body {
       <button class="moon-modal-btn primary" id="moonReturnCopyBtn" onclick="copyMoonReturn()" style="display:none">コピー</button>
       <button class="moon-modal-btn" onclick="exitMoonDirect()">そのまま戻る</button>
     </div>
+    <button class="moon-modal-btn danger" onclick="clearMoonAndExit()" style="width:100%;font-size:11px;opacity:0.7">ログを消して戻る</button>
   </div>
 </div>
 
@@ -2627,6 +2629,12 @@ function copyMoonReturn() {
 }
 
 function exitMoonDirect() { deactivateMoonMode(); closeMoonExitModal(); }
+
+function clearMoonAndExit() {
+  localStorage.removeItem(STORE_MOON);
+  deactivateMoonMode();
+  closeMoonExitModal();
+}
 
 function deactivateMoonMode() {
   isMoonMode = false;

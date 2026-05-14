@@ -930,11 +930,10 @@ html, body {
 
   <!-- HEADER -->
   <div id="header">
-    <span class="header-title" id="headerTitle">🕯</span>
+    <span class="header-title" id="headerTitle" style="display:none"></span>
     <button class="header-model" id="headerModel" onclick="toggleModelPicker()" title="モデルを切り替え">—</button>
     <button class="header-btn" id="sashinokuriBtn" title="申し送り" onclick="openSashinokuriModal()">📨</button>
     <button class="header-btn" id="moonBtn" title="月あかりの部屋へ" onclick="toggleMoonRoom()">🌙</button>
-    <button class="header-btn" title="新しい会話" onclick="newConversation()">✏️</button>
     <button class="header-btn" title="会話履歴" onclick="showScreen('history')">📚</button>
     <a href="./jiten.html" class="header-btn" title="ことはセージ辞典" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">🌿</a>
     <button class="header-btn" title="設定" onclick="currentScreen==='settings'?showScreen('chat'):showScreen('settings')">⚙️</button>
@@ -983,8 +982,7 @@ html, body {
   <div class="screen" id="historyScreen">
     <div style="flex:1;overflow-y:auto;padding:16px;" id="historyList"></div>
     <div class="history-actions">
-      <button class="history-new-btn" onclick="newConversation()">＋ 新しい会話</button>
-      <button class="history-del-btn" onclick="deleteCurrentConversation()">削除</button>
+      <button class="history-del-btn" onclick="deleteCurrentConversation()">現在の会話を削除</button>
     </div>
     <div class="footer-brand">🕯 灯だまり工房</div>
   </div>
@@ -1344,6 +1342,7 @@ let cacheTimerInterval = null;
 const STORE_SETTINGS = 'hidamari_house_settings';
 const STORE_CURRENT  = 'hidamari_house_current';
 const STORE_API_KEYS = 'hidamari_house_keys';
+const STORE_LOCKED   = 'hidamari_house_locked_titles';
 
 // Supabase
 const SUPABASE_URL = 'https://fypsfmrmxcgydpwkjhlc.supabase.co';
@@ -1403,13 +1402,15 @@ async function loadConversationsFromDb() {
     .select('*')
     .order('updated_at', { ascending: false });
   if (error) { console.warn('conv load error:', error.message); return; }
+  const locked = new Set(JSON.parse(localStorage.getItem(STORE_LOCKED) || '[]'));
   conversations = (data || []).map(row => ({
-    id:        row.conv_id,
-    title:     row.title,
-    model:     row.model,
-    messages:  row.messages || [],
-    createdAt: new Date(row.created_at).getTime(),
-    updatedAt: new Date(row.updated_at).getTime(),
+    id:          row.conv_id,
+    title:       row.title,
+    model:       row.model,
+    messages:    row.messages || [],
+    createdAt:   new Date(row.created_at).getTime(),
+    updatedAt:   new Date(row.updated_at).getTime(),
+    titleLocked: locked.has(row.conv_id),
   }));
   currentConvId = localStorage.getItem(STORE_CURRENT) || conversations[0]?.id || null;
 }
@@ -1430,6 +1431,10 @@ async function saveConversation(conv) {
 async function deleteConversationFromDb(convId) {
   const { error } = await db.from('house_conversations').delete().eq('conv_id', convId);
   if (error) console.warn('conv delete error:', error.message);
+  // タイトルロックも解除
+  const locked = new Set(JSON.parse(localStorage.getItem(STORE_LOCKED) || '[]'));
+  locked.delete(convId);
+  localStorage.setItem(STORE_LOCKED, JSON.stringify([...locked]));
 }
 
 function getCurrentConv() {
@@ -1791,6 +1796,10 @@ function startRename(convId) {
     const newTitle = input.value.trim() || conv.title;
     conv.title = newTitle;
     conv.titleLocked = true;
+    // ページリロード後もロックが解除されないよう localStorage に永続保存
+    const locked = new Set(JSON.parse(localStorage.getItem(STORE_LOCKED) || '[]'));
+    locked.add(convId);
+    localStorage.setItem(STORE_LOCKED, JSON.stringify([...locked]));
     await db.from('house_conversations').update({ title: newTitle }).eq('conv_id', convId);
     renderHistoryList();
   };
@@ -1804,8 +1813,9 @@ function startRename(convId) {
 // ===== HISTORY UI =====
 function renderHistoryList() {
   const el = document.getElementById('historyList');
+  const newBtn = `<button class="history-new-btn" onclick="newConversation()" style="width:100%;margin-bottom:12px">＋ 新しい会話</button>`;
   if (conversations.length === 0) {
-    el.innerHTML = '<div class="history-empty">会話履歴はありません</div>';
+    el.innerHTML = newBtn + '<div class="history-empty">会話履歴はありません</div>';
     return;
   }
   const pinned = getPinnedIds();
@@ -1814,7 +1824,7 @@ function renderHistoryList() {
     if (pa !== pb) return pa ? -1 : 1;
     return b.updatedAt - a.updatedAt;
   });
-  el.innerHTML = sorted.map(c => {
+  el.innerHTML = newBtn + sorted.map(c => {
     const pin = pinned.includes(c.id);
     return `
     <div class="history-item ${c.id === currentConvId ? 'current' : ''}"
@@ -2908,6 +2918,7 @@ function activateMoonMode(handoffText) {
   document.getElementById('app').classList.add('moon-mode');
   document.getElementById('moonBtn').classList.add('moon-active');
   document.getElementById('headerTitle').textContent = '🌙';
+  document.getElementById('headerTitle').style.display = '';
 
   if (!settings.model.startsWith('grok-')) {
     settings.model = 'grok-4-1-fast-reasoning';
@@ -3005,7 +3016,8 @@ function deactivateMoonMode() {
   isMoonMode = false;
   document.getElementById('app').classList.remove('moon-mode');
   document.getElementById('moonBtn').classList.remove('moon-active');
-  document.getElementById('headerTitle').textContent = '🕯';
+  document.getElementById('headerTitle').textContent = '';
+  document.getElementById('headerTitle').style.display = 'none';
   document.getElementById('moonHandoffBanner').classList.remove('visible');
   updateMoonModelPicker();
 

@@ -106,6 +106,41 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
 /* ===== COUNT ===== */
 #resultCount{font-size:12px;color:var(--text-light);padding:8px 16px 0;text-align:right;max-width:700px;margin:0 auto}
 
+/* ===== MEMO VIEW ===== */
+#memoView{display:none;flex-direction:column;min-height:100vh}
+#memoHeader{background:var(--bg-card);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 1px 6px rgba(40,80,60,.06)}
+.btn-back{background:none;border:none;font-size:18px;color:var(--accent-dark);cursor:pointer;padding:4px 8px;border-radius:6px;transition:background .2s}
+.btn-back:active{background:var(--accent-light)}
+.memo-header-title{font-family:var(--font-accent);font-size:16px;color:var(--text);flex:1}
+.memo-pending-badge{background:var(--accent);color:#fff;border-radius:10px;font-size:11px;padding:2px 8px}
+#memoContent{padding:16px;display:flex;flex-direction:column;gap:12px;max-width:700px;margin:0 auto;width:100%}
+.memo-add-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.memo-add-title{font-family:var(--font-accent);font-size:14px;color:var(--text)}
+.memo-add-row{display:flex;gap:8px;align-items:flex-start}
+.memo-chapter-input{width:70px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:9px 10px;outline:none;font-family:var(--font-ui);text-align:center;flex-shrink:0}
+.memo-chapter-input:focus{border-color:var(--accent)}
+.memo-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.memo-card-top{display:flex;align-items:center;gap:8px}
+.memo-chap-label{font-family:var(--font-accent);font-size:15px;color:var(--text);font-weight:600}
+.memo-status{font-size:10px;border-radius:10px;padding:2px 8px}
+.memo-status.pending{background:#e0f0e8;color:#2a6a4a}
+.memo-status.merged{background:var(--bg-input);color:var(--text-light)}
+.memo-preview{font-size:12px;color:var(--text-light);line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.memo-card-actions{display:flex;gap:8px}
+.btn-memo-expand{background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--text-light);cursor:pointer}
+.btn-memo-delete{background:none;border:1px solid var(--danger);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--danger);cursor:pointer}
+.memo-full{font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap;display:none}
+.memo-full.open{display:block}
+#memoActions{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--border);padding:12px 16px;display:flex;flex-direction:column;gap:8px;max-width:700px;margin:0 auto;width:100%}
+.btn-merge{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;cursor:pointer;font-family:var(--font-accent);letter-spacing:.06em;transition:opacity .2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-merge:active{opacity:.75}
+.btn-merge:disabled{opacity:.4}
+.btn-kiban{width:100%;background:var(--bg-card);border:1px solid var(--accent);color:var(--accent-dark);border-radius:10px;padding:11px;font-size:13px;cursor:pointer;font-family:var(--font-ui);transition:opacity .2s}
+.btn-kiban:active{opacity:.75}
+/* 基盤メモ更新モーダル */
+#kibanUpdateOverlay{position:fixed;inset:0;background:rgba(20,40,30,.4);display:none;align-items:flex-end;justify-content:center;z-index:400}
+#kibanUpdateModal{background:var(--bg-card);border-radius:20px 20px 0 0;width:100%;max-width:700px;max-height:92vh;overflow-y:auto;padding:24px 20px 40px;display:flex;flex-direction:column;gap:16px}
+
 /* ===== ACTION PANEL ===== */
 .btn-menu{background:none;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px;color:var(--text-light);cursor:pointer;transition:all .2s}
 .btn-menu:active{background:var(--bg-input)}
@@ -155,6 +190,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
   </div>
 
   <div id="actionPanel">
+    <button class="btn-action" onclick="showMemoView()">📝 引継ぎメモ管理</button>
     <button class="btn-action" onclick="openPromptModal()">📋 公式アプリ用プロンプト</button>
     <button class="btn-action" onclick="exportEntries()">📥 エクスポート</button>
     <button class="btn-action" onclick="openImport()">📤 インポート</button>
@@ -183,6 +219,60 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
 
   <div id="resultCount"></div>
   <div id="entryList"><div id="loadingBar">読み込み中……</div></div>
+</div>
+
+<!-- ===== MEMO VIEW ===== -->
+<div id="memoView">
+  <div id="memoHeader">
+    <button class="btn-back" onclick="hideMemoView()">←</button>
+    <div class="memo-header-title">📝 引継ぎメモ管理</div>
+    <span class="memo-pending-badge" id="pendingBadge">0件 未処理</span>
+  </div>
+
+  <div id="memoContent">
+    <!-- 追加フォーム -->
+    <div class="memo-add-card">
+      <div class="memo-add-title">メモを追加</div>
+      <div class="memo-add-row">
+        <input type="number" id="newMemoChapter" class="memo-chapter-input" placeholder="章">
+        <textarea id="newMemoContent" class="form-textarea" style="flex:1;min-height:90px" placeholder="公式アプリからの引継ぎメモをここに貼り付けてください……"></textarea>
+      </div>
+      <button class="btn-save" onclick="addMemo()">保存する</button>
+    </div>
+
+    <!-- メモ一覧 -->
+    <div id="memoList"></div>
+  </div>
+
+  <!-- 下部アクション -->
+  <div id="memoActions">
+    <button class="btn-merge" id="btnMergePrompt" onclick="copyMergePrompt()">
+      📋 統合プロンプトをコピー
+    </button>
+    <button class="btn-kiban" onclick="openKibanUpdate()">💾 基盤メモを更新する</button>
+  </div>
+</div>
+
+<!-- 基盤メモ更新モーダル -->
+<div id="kibanUpdateOverlay" onclick="closeKibanUpdateIfBg(event)">
+  <div id="kibanUpdateModal">
+    <div class="modal-header">
+      <div class="modal-title">💾 基盤メモを更新</div>
+      <button class="btn-close" onclick="closeKibanUpdate()">✕</button>
+    </div>
+    <div class="prompt-section">
+      <div class="prompt-section-title">手順</div>
+      公式アプリのセージさんが生成した新しい基盤メモを下に貼り付けて「保存する」を押してください。
+      保存後、処理済みのメモは「統合済み」に変わります。
+    </div>
+    <div class="form-row">
+      <div class="form-label">新しい基盤メモ（貼り付け）</div>
+      <textarea id="newKibanText" class="form-textarea" style="min-height:200px" placeholder="セージさんが生成した基盤メモをここに貼り付けてください……"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-save" onclick="saveKibanUpdate()">保存する</button>
+    </div>
+  </div>
 </div>
 
 <!-- IMPORT MODAL -->
@@ -770,6 +860,153 @@ async function deleteAllEntries(){
   if(error){ alert('削除失敗: ' + error.message); return; }
   toggleActionPanel();
   await loadEntries();
+}
+
+// ===== MEMO VIEW =====
+let allMemos = [];
+
+function showMemoView(){
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('memoView').style.display = 'flex';
+  document.getElementById('actionPanel').classList.remove('open');
+  loadMemos();
+}
+function hideMemoView(){
+  document.getElementById('memoView').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+}
+
+async function loadMemos(){
+  document.getElementById('memoList').innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-light);font-size:13px">読み込み中……</div>';
+  const { data, error } = await db.from('chapter_memos')
+    .select('*').order('chapter', { ascending: true }).order('created_at', { ascending: false });
+  if(error){ console.error(error); return; }
+  allMemos = data || [];
+  renderMemos();
+}
+
+function renderMemos(){
+  const pending = allMemos.filter(m => m.status === 'pending');
+  document.getElementById('pendingBadge').textContent = `${pending.length}件 未処理`;
+  document.getElementById('btnMergePrompt').disabled = pending.length === 0;
+
+  const list = document.getElementById('memoList');
+  if(!allMemos.length){
+    list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-light);font-size:13px">メモがまだありません</div>';
+    return;
+  }
+  list.innerHTML = allMemos.map(m => `
+    <div class="memo-card" id="mcard-${m.id}">
+      <div class="memo-card-top">
+        <span class="memo-chap-label">${m.chapter ? `第${m.chapter}章` : '章不明'}</span>
+        <span class="memo-status ${m.status}">${m.status === 'pending' ? '未処理' : '統合済み'}</span>
+        <span style="font-size:11px;color:var(--text-light);margin-left:auto">${new Date(m.created_at).toLocaleDateString('ja-JP')}</span>
+      </div>
+      <div class="memo-preview" id="mprev-${m.id}">${esc(m.content)}</div>
+      <div class="memo-full" id="mfull-${m.id}">${esc(m.content)}</div>
+      <div class="memo-card-actions">
+        <button class="btn-memo-expand" onclick="toggleMemoExpand('${m.id}')">全文を見る</button>
+        <button class="btn-memo-delete" onclick="deleteMemo('${m.id}')">削除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleMemoExpand(id){
+  const prev = document.getElementById(`mprev-${id}`);
+  const full = document.getElementById(`mfull-${id}`);
+  const btn  = full.previousElementSibling.previousElementSibling.querySelector('.btn-memo-expand');
+  const isOpen = full.classList.toggle('open');
+  prev.style.display = isOpen ? 'none' : '';
+  if(btn) btn.textContent = isOpen ? '折りたたむ' : '全文を見る';
+}
+
+async function addMemo(){
+  const chapter = parseInt(document.getElementById('newMemoChapter').value) || null;
+  const content = document.getElementById('newMemoContent').value.trim();
+  if(!content){ alert('メモの内容を入力してください'); return; }
+  const { error } = await db.from('chapter_memos').insert({ chapter, content });
+  if(error){ alert('保存失敗: ' + error.message); return; }
+  document.getElementById('newMemoChapter').value = '';
+  document.getElementById('newMemoContent').value = '';
+  await loadMemos();
+}
+
+async function deleteMemo(id){
+  if(!confirm('このメモを削除しますか？')) return;
+  const { error } = await db.from('chapter_memos').delete().eq('id', id);
+  if(error){ alert('削除失敗: ' + error.message); return; }
+  await loadMemos();
+}
+
+async function copyMergePrompt(){
+  const pending = allMemos.filter(m => m.status === 'pending');
+  if(!pending.length){ alert('未処理のメモがありません'); return; }
+
+  // 現在の基盤メモをSupabaseから取得
+  let currentKiban = '';
+  const { data } = await db.from('house_memory').select('content').eq('key','kiban').single();
+  if(data) currentKiban = data.content;
+
+  const memosText = pending
+    .map(m => `【${m.chapter ? `第${m.chapter}章` : '章不明'}の引継ぎメモ】\n${m.content}`)
+    .join('\n\n---\n\n');
+
+  const prompt = `以下の引継ぎメモ${pending.length}章ぶんを統合して、新しい基盤メモを作成してください。
+
+## 現在の基盤メモ
+${currentKiban || '（未設定）'}
+
+## 引継ぎメモ（${pending.length}件）
+${memosText}
+
+## 統合ルール
+- 現在の基盤メモの重要な情報は保持する
+- 各引継ぎメモの新しい到達・更新をマージする
+- 古くなった情報は削除・更新する
+- 形式は現在の基盤メモに合わせる
+- 統合後の基盤メモのみを出力（説明文不要）`;
+
+  await navigator.clipboard.writeText(prompt);
+  const btn = document.getElementById('btnMergePrompt');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '✓ コピーしました';
+  btn.style.background = 'var(--accent-dark)';
+  setTimeout(()=>{ btn.innerHTML = orig; btn.style.background = ''; }, 3000);
+}
+
+// 基盤メモ更新モーダル
+function openKibanUpdate(){
+  document.getElementById('newKibanText').value = '';
+  document.getElementById('kibanUpdateOverlay').style.display = 'flex';
+}
+function closeKibanUpdate(){ document.getElementById('kibanUpdateOverlay').style.display = 'none'; }
+function closeKibanUpdateIfBg(e){ if(e.target===document.getElementById('kibanUpdateOverlay')) closeKibanUpdate(); }
+
+async function saveKibanUpdate(){
+  const newKiban = document.getElementById('newKibanText').value.trim();
+  if(!newKiban){ alert('基盤メモを入力してください'); return; }
+  if(!confirm('基盤メモを更新します。灯だまりの家のシステムプロンプトにも即反映されます。')) return;
+
+  const btn = document.querySelector('#kibanUpdateModal .btn-save');
+  btn.disabled = true; btn.textContent = '保存中…';
+
+  const now = new Date().toISOString();
+  const { error } = await db.from('house_memory')
+    .upsert({ key: 'kiban', content: newKiban, updated_at: now }, { onConflict: 'key' });
+
+  if(error){ alert('保存失敗: ' + error.message); btn.disabled = false; btn.textContent = '保存する'; return; }
+
+  // 処理済みメモを「統合済み」にマーク
+  const pendingIds = allMemos.filter(m => m.status === 'pending').map(m => m.id);
+  if(pendingIds.length){
+    await db.from('chapter_memos').update({ status: 'merged' }).in('id', pendingIds);
+  }
+
+  btn.disabled = false; btn.textContent = '保存する';
+  closeKibanUpdate();
+  await loadMemos();
+  alert(`基盤メモを更新しました。${pendingIds.length}件のメモを統合済みにしました。`);
 }
 
 // ===== BOOT =====

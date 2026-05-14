@@ -120,11 +120,13 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
 .memo-chapter-input{width:70px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:9px 10px;outline:none;font-family:var(--font-ui);text-align:center;flex-shrink:0}
 .memo-chapter-input:focus{border-color:var(--accent)}
 .memo-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
-.memo-card-top{display:flex;align-items:center;gap:8px}
+.memo-card{transition:background .15s}
+.memo-card.selected{background:var(--accent-pale);border-color:var(--accent)}
+.memo-card-top{display:flex;align-items:center;gap:10px}
+.memo-check{width:18px;height:18px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
 .memo-chap-label{font-family:var(--font-accent);font-size:15px;color:var(--text);font-weight:600}
-.memo-status{font-size:10px;border-radius:10px;padding:2px 8px}
-.memo-status.pending{background:#e0f0e8;color:#2a6a4a}
-.memo-status.merged{background:var(--bg-input);color:var(--text-light)}
+.memo-select-bar{display:flex;align-items:center;gap:8px}
+.memo-select-count{font-size:12px;color:var(--accent-dark);font-weight:500;white-space:nowrap}
 .memo-preview{font-size:12px;color:var(--text-light);line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .memo-card-actions{display:flex;gap:8px}
 .btn-memo-expand{background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--text-light);cursor:pointer}
@@ -254,7 +256,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
   <div id="memoHeader">
     <button class="btn-back" onclick="hideMemoView()">←</button>
     <div class="memo-header-title">📝 引継ぎメモ管理</div>
-    <span class="memo-pending-badge" id="pendingBadge">0件 未処理</span>
+    <span class="memo-select-count" id="selectedCountLabel"></span>
   </div>
 
   <div id="memoContent">
@@ -274,8 +276,12 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
 
   <!-- 下部アクション -->
   <div id="memoActions">
-    <button class="btn-merge" id="btnIntegrateAll" onclick="integrateAllWithApi()">
-      ✨ AIでまとめて統合する
+    <div class="memo-select-bar">
+      <button class="btn-kiban" style="flex:1;padding:9px" onclick="toggleSelectAll()" id="btnSelectAll">全選択</button>
+      <button class="btn-kiban" style="flex:1;padding:9px" onclick="clearSelection()">選択解除</button>
+    </div>
+    <button class="btn-merge" id="btnIntegrateSelected" onclick="integrateSelectedWithApi()" disabled>
+      ✨ 選択したメモで統合する
     </button>
     <button class="btn-merge" id="btnMergePrompt" onclick="copyMergePrompt()" style="background:var(--accent-dark);font-size:13px">
       📋 統合プロンプトをコピー
@@ -927,17 +933,14 @@ function hideMemoView(){
 async function loadMemos(){
   document.getElementById('memoList').innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-light);font-size:13px">読み込み中……</div>';
   const { data, error } = await db.from('chapter_memos')
-    .select('*').order('chapter', { ascending: true }).order('created_at', { ascending: false });
+    .select('*').order('chapter', { ascending: false }).order('created_at', { ascending: false });
   if(error){ console.error(error); return; }
   allMemos = data || [];
   renderMemos();
 }
 
 function renderMemos(){
-  const pending = allMemos.filter(m => m.status === 'pending');
-  document.getElementById('pendingBadge').textContent = `${pending.length}件 未処理`;
-  document.getElementById('btnMergePrompt').disabled = pending.length === 0;
-  document.getElementById('btnIntegrateAll').disabled = pending.length === 0;
+  updateIntegrateBtn(); // 選択カウンターをリセット
 
   const list = document.getElementById('memoList');
   if(!allMemos.length){
@@ -947,19 +950,60 @@ function renderMemos(){
   list.innerHTML = allMemos.map(m => `
     <div class="memo-card" id="mcard-${m.id}">
       <div class="memo-card-top">
+        <input type="checkbox" class="memo-check" value="${m.id}"
+          onchange="onMemoCheck(this, '${m.id}')">
         <span class="memo-chap-label">${m.chapter ? `第${m.chapter}章` : '章不明'}</span>
-        <span class="memo-status ${m.status}">${m.status === 'pending' ? '未処理' : '統合済み'}</span>
         <span style="font-size:11px;color:var(--text-light);margin-left:auto">${new Date(m.created_at).toLocaleDateString('ja-JP')}</span>
       </div>
       <div class="memo-preview" id="mprev-${m.id}">${esc(m.content)}</div>
       <div class="memo-full" id="mfull-${m.id}">${esc(m.content)}</div>
       <div class="memo-card-actions">
-        ${m.status === 'pending' ? `<button class="btn-integrate" onclick="integrateWithApi('${m.id}')">✨ このメモで統合する</button>` : ''}
         <button class="btn-memo-expand" onclick="toggleMemoExpand('${m.id}')">全文を見る</button>
         <button class="btn-memo-delete" onclick="deleteMemo('${m.id}')">削除</button>
       </div>
     </div>
   `).join('');
+}
+
+function onMemoCheck(checkbox, id){
+  const card = document.getElementById(`mcard-${id}`);
+  if(checkbox.checked) card.classList.add('selected');
+  else card.classList.remove('selected');
+  updateIntegrateBtn();
+}
+
+function updateIntegrateBtn(){
+  const checked = document.querySelectorAll('.memo-check:checked');
+  const count = checked.length;
+  const btn = document.getElementById('btnIntegrateSelected');
+  const label = document.getElementById('selectedCountLabel');
+  if(btn){
+    btn.disabled = count === 0;
+    btn.innerHTML = count > 0
+      ? `✨ 選択した${count}件のメモで統合する`
+      : '✨ 選択したメモで統合する';
+  }
+  if(label) label.textContent = count > 0 ? `${count}件選択中` : '';
+}
+
+function toggleSelectAll(){
+  const checkboxes = document.querySelectorAll('.memo-check');
+  const allChecked = [...checkboxes].every(c => c.checked);
+  checkboxes.forEach(c => {
+    c.checked = !allChecked;
+    const card = document.getElementById(`mcard-${c.value}`);
+    if(card) card.classList.toggle('selected', !allChecked);
+  });
+  updateIntegrateBtn();
+}
+
+function clearSelection(){
+  document.querySelectorAll('.memo-check').forEach(c => {
+    c.checked = false;
+    const card = document.getElementById(`mcard-${c.value}`);
+    if(card) card.classList.remove('selected');
+  });
+  updateIntegrateBtn();
 }
 
 function toggleMemoExpand(id){
@@ -990,8 +1034,11 @@ async function deleteMemo(id){
 }
 
 async function copyMergePrompt(){
-  const pending = allMemos.filter(m => m.status === 'pending');
-  if(!pending.length){ alert('未処理のメモがありません'); return; }
+  const checkedIds = [...document.querySelectorAll('.memo-check:checked')].map(c => c.value);
+  const pending = checkedIds.length
+    ? allMemos.filter(m => checkedIds.includes(m.id)).sort((a,b) => (a.chapter||0)-(b.chapter||0))
+    : allMemos.slice().sort((a,b) => (a.chapter||0)-(b.chapter||0));
+  if(!pending.length){ alert('メモがありません'); return; }
 
   // 現在の基盤メモをSupabaseから取得
   let currentKiban = '';
@@ -1047,16 +1094,11 @@ async function saveKibanUpdate(){
 
   if(error){ alert('保存失敗: ' + error.message); btn.disabled = false; btn.textContent = '保存する'; return; }
 
-  // 処理済みメモを「統合済み」にマーク
-  const pendingIds = allMemos.filter(m => m.status === 'pending').map(m => m.id);
-  if(pendingIds.length){
-    await db.from('chapter_memos').update({ status: 'merged' }).in('id', pendingIds);
-  }
-
   btn.disabled = false; btn.textContent = '保存する';
   closeKibanUpdate();
+  clearSelection();
   await loadMemos();
-  alert(`基盤メモを更新しました。${pendingIds.length}件のメモを統合済みにしました。`);
+  alert('基盤メモを更新しました。');
 }
 
 // ===== API KEY =====
@@ -1091,42 +1133,38 @@ function initApiKeyUi(){
 }
 
 // ===== INTEGRATE OVERLAY =====
-let integratingMemoId = null;
+let integratingMemoIds = [];
 let generatedKiban = '';
 
 function closeIntegrate(){
   document.getElementById('integrateOverlay').style.display = 'none';
-  integratingMemoId = null;
+  integratingMemoIds = [];
 }
 
-async function integrateWithApi(memoId){
+async function integrateSelectedWithApi(){
   if(!jitenAnthropicKey){
     alert('APIキーを設定してください（⋯メニュー → 🔑 Anthropic APIキー）');
     return;
   }
-  const memo = allMemos.find(m => m.id === memoId);
-  if(!memo) return;
-  integratingMemoId = memoId;
-  await openIntegrateModal([memo]);
-}
-
-async function integrateAllWithApi(){
-  if(!jitenAnthropicKey){
-    alert('APIキーを設定してください（⋯メニュー → 🔑 Anthropic APIキー）');
-    return;
-  }
-  const pending = allMemos.filter(m => m.status === 'pending');
-  if(!pending.length){ alert('未処理のメモがありません'); return; }
-  integratingMemoId = pending[pending.length - 1].id; // 最後のメモを直近メモに使う
-  await openIntegrateModal(pending);
+  const checkedIds = [...document.querySelectorAll('.memo-check:checked')].map(c => c.value);
+  if(!checkedIds.length){ alert('メモを選択してください'); return; }
+  const selected = allMemos.filter(m => checkedIds.includes(m.id));
+  // 章番号の昇順（古い順）でプロンプトに渡す
+  selected.sort((a,b) => (a.chapter||0) - (b.chapter||0));
+  integratingMemoIds = selected.map(m => m.id);
+  await openIntegrateModal(selected);
 }
 
 async function openIntegrateModal(memos){
   generatedKiban = '';
+  integratingMemoIds = memos.map(m => m.id);
   const isMulti = memos.length > 1;
+  const chapterRange = isMulti
+    ? `第${memos[0].chapter||'?'}〜${memos[memos.length-1].chapter||'?'}章`
+    : `第${memos[0].chapter || '?'}章`;
   const title = isMulti
-    ? `✨ ${memos.length}章ぶんのメモを一括統合`
-    : `✨ 第${memos[0].chapter || '?'}章メモで統合`;
+    ? `✨ ${memos.length}件（${chapterRange}）を統合`
+    : `✨ ${chapterRange}のメモで統合`;
 
   document.getElementById('integrateTitle').textContent = title;
   document.getElementById('streamStatus').textContent = '基盤メモを読み込み中……';
@@ -1235,8 +1273,10 @@ ${memosText}
 
 async function saveIntegratedKiban(){
   if(!generatedKiban.trim()){ alert('生成内容がありません'); return; }
-  const lastMemo = allMemos.find(m => m.id === integratingMemoId);
-  const pending = allMemos.filter(m => m.status === 'pending');
+
+  // 統合対象メモ（章番号が最も大きいものを直近メモにする）
+  const usedMemos = allMemos.filter(m => integratingMemoIds.includes(m.id));
+  const latestMemo = usedMemos.reduce((a,b) => (b.chapter||0) > (a.chapter||0) ? b : a, usedMemos[0]);
 
   if(!confirm('基盤メモを更新します。灯だまりの家のシステムプロンプトに即反映されます。')) return;
 
@@ -1249,25 +1289,18 @@ async function saveIntegratedKiban(){
     .upsert({ key:'kiban', content:generatedKiban.trim(), updated_at:now }, { onConflict:'key' });
   if(kibanErr){ alert('基盤メモの保存失敗: ' + kibanErr.message); btn.disabled=false; btn.textContent='💾 基盤メモに保存する'; return; }
 
-  // このメモを直近メモ（chokukin）に保存
-  if(lastMemo){
+  // 最新章のメモを直近メモ（chokukin）に保存
+  if(latestMemo){
     const { error: ckErr } = await db.from('house_memory')
-      .upsert({ key:'chokukin', content:lastMemo.content, updated_at:now }, { onConflict:'key' });
+      .upsert({ key:'chokukin', content:latestMemo.content, updated_at:now }, { onConflict:'key' });
     if(ckErr) console.warn('直近メモ更新失敗:', ckErr.message);
-  }
-
-  // 未処理メモを統合済みにマーク
-  const pendingIds = pending.map(m => m.id);
-  if(pendingIds.length){
-    const { error: mErr } = await db.from('chapter_memos')
-      .update({ status:'merged' }).in('id', pendingIds);
-    if(mErr) console.warn('メモ統合済みマーク失敗:', mErr.message);
   }
 
   btn.disabled = false; btn.textContent = '💾 基盤メモに保存する';
   closeIntegrate();
+  clearSelection();
   await loadMemos();
-  alert(`✓ 基盤メモを更新しました。\n${pendingIds.length}件のメモを統合済みにしました。\n\n公式アプリにも新しい基盤メモを貼り付けてください。`);
+  alert(`✓ 基盤メモを更新しました（${usedMemos.length}章ぶん）。\n\n公式アプリにも新しい基盤メモを貼り付けてください。`);
 }
 
 // ===== BOOT =====

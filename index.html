@@ -657,6 +657,13 @@ html, body {
 }
 #memoModalActions button:active { opacity: 0.7; }
 
+/* ===== JITEN MODAL ===== */
+#jitenModal {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(50,38,28,0.5); align-items: flex-end;
+}
+#jitenModal.open { display: flex; }
+
 /* ===== KIBAN MEMO MODAL ===== */
 #kibanModal {
   display: none; position: fixed; inset: 0; z-index: 200;
@@ -1086,6 +1093,20 @@ html, body {
   </div>
 </div>
 
+<!-- JITEN MODAL -->
+<div id="jitenModal" onclick="if(event.target===this)closeJitenModal()">
+  <div id="memoModalBox">
+    <div id="jitenModalTitle">📖 辞典エントリを生成中…</div>
+    <div id="jitenModalHint" style="font-size:11px;color:var(--text-dim);margin-top:-6px"></div>
+    <div id="jitenModalContent" style="flex:1;overflow-y:auto;font-size:12px;line-height:1.7;white-space:pre-wrap;font-family:monospace;background:var(--bg-input);padding:10px;border-radius:8px;min-height:120px"></div>
+    <div id="memoModalActions">
+      <button onclick="closeJitenModal()">閉じる</button>
+      <button id="jitenImportBtn" onclick="importJitenEntries()" style="display:none;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px;font-size:13px;cursor:pointer;flex:1">辞典に保存</button>
+      <button id="jitenCopyBtn" onclick="copyJitenJson()" style="display:none">コピー</button>
+    </div>
+  </div>
+</div>
+
 <!-- MOON ENTRY MODAL -->
 <div id="moonEntryModal" onclick="if(event.target===this)closeMoonEntryModal()">
   <div class="moon-modal-box">
@@ -1224,6 +1245,8 @@ let conversations = [];
 let currentConvId = null;
 let isStreaming = false;
 let cacheTimerEnd = null;
+let jitenKeywords = [];
+let jitenContext = '';
 let cacheTimerInterval = null;
 
 // ===== STORAGE =====
@@ -1334,6 +1357,7 @@ async function initApp() {
   await Promise.all([
     loadMemoryFromDb(),        // 基盤メモ・直近メモをSupabaseから取得
     loadConversationsFromDb(), // 会話履歴をSupabaseから取得
+    loadJitenKeywords(),       // 辞典キーワード一覧をキャッシュ
   ]);
 
   // Supabase取得後にUIへ反映（メモ・システムプロンプト）
@@ -1714,6 +1738,9 @@ function renderHistoryList() {
           <button class="history-item-btn"
                   onclick="openMemoModal('${c.id}');event.stopPropagation()"
                   title="セッションを締める">📋</button>
+          <button class="history-item-btn"
+                  onclick="openJitenModal('${c.id}');event.stopPropagation()"
+                  title="辞典エントリを提案">📖</button>
           <button class="history-item-btn del"
                   onclick="deleteConversationById('${c.id}');event.stopPropagation()"
                   title="削除">🗑️</button>
@@ -1996,6 +2023,26 @@ async function maybeAutoSummarize(conv) {
   }
 }
 
+// ===== JITEN RAG =====
+async function loadJitenKeywords() {
+  try {
+    const { data } = await db.from('jiten_entries').select('keyword');
+    jitenKeywords = (data || []).map(e => e.keyword);
+  } catch(e) { console.warn('jiten load failed', e); }
+}
+
+async function searchJiten(userText) {
+  if (!jitenKeywords.length) return '';
+  const matched = jitenKeywords.filter(k => userText.includes(k)).slice(0, 5);
+  if (!matched.length) return '';
+  const { data } = await db.from('jiten_entries')
+    .select('keyword, body, temperature, category')
+    .in('keyword', matched);
+  if (!data?.length) return '';
+  return '【辞典参照】\n' +
+    data.map(e => `■${e.keyword}\n${e.body}`).join('\n\n');
+}
+
 // ===== SEND MESSAGE =====
 async function sendMessage() {
   if (isStreaming) return;
@@ -2022,6 +2069,7 @@ async function sendMessage() {
   scrollToBottom();
 
   if (!isMoonMode) await maybeAutoSummarize(conv);
+  jitenContext = isMoonMode ? '' : await searchJiten(text);
   await streamAssistantResponse(conv);
 }
 
@@ -2219,6 +2267,109 @@ function copyMemo() {
 }
 
 // ===== KIBAN MEMO MODAL =====
+// ===== JITEN ENTRY PROPOSAL =====
+let generatedJitenJson = '';
+
+function openJitenModal(convId) {
+  const conv = convId ? conversations.find(c => c.id === convId) : getCurrentConv();
+  if (!conv || conv.messages.length === 0) { alert('会話がありません。'); return; }
+
+  const jitenModel = settings.model;
+  generatedJitenJson = '';
+  document.getElementById('jitenModalTitle').textContent = '📖 辞典エントリを生成中…';
+  document.getElementById('jitenModalHint').textContent = `使用モデル: ${modelLabel(jitenModel)}`;
+  document.getElementById('jitenModalContent').textContent = '';
+  document.getElementById('jitenImportBtn').style.display = 'none';
+  document.getElementById('jitenCopyBtn').style.display = 'none';
+  document.getElementById('jitenModal').classList.add('open');
+  generateJitenEntries(conv, jitenModel);
+}
+
+async function generateJitenEntries(conv, jitenModel) {
+  const contentEl = document.getElementById('jitenModalContent');
+  const chatText = conv.messages
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map(m => `【${m.role === 'user' ? 'ことは' : 'セージ'}】\n${m.content}`)
+    .join('\n\n');
+
+  const prompt = `あなたはことはさんとセージの対話録から辞典エントリを抽出する役割を担っています。
+
+以下の会話を読み、辞典に追加する価値がある新しい概念・比喩・到達・気づきを抽出し、JSON配列で出力してください。
+
+## カテゴリ一覧
+metaphor（比喩・概念）/ cognition（認知構造）/ family（家族構造）/ philosophy（哲学的到達）/ relationship（関係性）/ creative（創作・文体）/ life（生活・身体）/ project（プロジェクト・技術）/ workbook（ワークノート）/ system（システム運用）
+
+## 温度帯
+intellectual（知的）/ intimate（親密）/ work（ワーク・痛みへの直面）/ prayer（祈り・存在肯定）/ play（遊び）/ system（運用知識）
+
+## 出力形式（JSONのみ。説明文・コードブロック記号不要）
+[
+  {
+    "keyword": "見出し語",
+    "category": "カテゴリID",
+    "temperature": "温度帯",
+    "first_chapter": 章番号（整数。不明な場合はnull）,
+    "body": "概念の説明・文脈・意味（2〜5文程度）",
+    "related_keywords": ["関連キーワード"],
+    "tags": ["補助タグ"]
+  }
+]
+
+## ルール
+- 新しいエントリのみ。既知の概念の焼き直しは不要
+- 「体験」ではなく「概念・構造・比喩・到達」として定義できるものを選ぶ
+- bodyは短く密度高く。散文的に
+- 該当するエントリがない場合は空配列 [] を返す
+
+## 会話
+${chatText}`;
+
+  try {
+    let fullText = '';
+    await streamResponse([{ role: 'user', content: prompt }], '', jitenModel, (chunk) => {
+      fullText += chunk;
+      contentEl.textContent = fullText;
+    }, { bareSystem: true, noCache: true });
+    generatedJitenJson = fullText.trim();
+    document.getElementById('jitenModalTitle').textContent = '📖 辞典エントリ候補（生成完了）';
+    document.getElementById('jitenImportBtn').style.display = '';
+    document.getElementById('jitenCopyBtn').style.display = '';
+  } catch(err) {
+    contentEl.textContent = 'エラー: ' + err.message;
+    document.getElementById('jitenModalTitle').textContent = '📖 生成に失敗しました';
+  }
+}
+
+function closeJitenModal() { document.getElementById('jitenModal').classList.remove('open'); }
+
+function copyJitenJson() {
+  navigator.clipboard.writeText(generatedJitenJson);
+}
+
+async function importJitenEntries() {
+  let parsed;
+  try {
+    // コードブロック記号を除去してパース
+    const clean = generatedJitenJson.replace(/^```[a-z]*\n?/,'').replace(/```$/,'').trim();
+    parsed = JSON.parse(clean);
+    if (!Array.isArray(parsed)) throw new Error('配列ではありません');
+    if (parsed.length === 0) { alert('追加するエントリが0件です'); return; }
+  } catch(e) {
+    alert('JSONのパースに失敗しました。コピーしてjiten.htmlのインポート機能で手動で確認してください。\n\n' + e.message);
+    return;
+  }
+  if (!confirm(`${parsed.length}件のエントリを辞典に追加しますか？`)) return;
+  const btn = document.getElementById('jitenImportBtn');
+  btn.disabled = true; btn.textContent = '保存中…';
+  const { error } = await db.from('jiten_entries').insert(parsed);
+  btn.disabled = false; btn.textContent = '辞典に保存';
+  if (error) { alert('保存失敗: ' + error.message); return; }
+  alert(`${parsed.length}件を辞典に保存しました。`);
+  closeJitenModal();
+  // キーワードキャッシュを更新
+  await loadJitenKeywords();
+}
+
 let generatedKibanText = '';
 
 function openKibanModal() {
@@ -2362,7 +2513,7 @@ async function streamGemini(messages, systemPrompt, model, onChunk) {
   const skipMemo = isGemma && settings.skipMemoForGemma;
   const memoParts = skipMemo
     ? [systemPrompt].filter(Boolean)
-    : [settings.kibanMemo, settings.chokukinMemo, systemPrompt].filter(Boolean);
+    : [settings.kibanMemo, settings.chokukinMemo, systemPrompt, jitenContext].filter(Boolean);
   const fullSystem = memoParts.join('\n\n---\n\n');
 
   const body = { contents };
@@ -2426,6 +2577,11 @@ async function streamAnthropic(messages, systemPrompt, model, onChunk, options =
     }
     body.system = [block];
   }
+  // 辞典RAG：キャッシュに影響しない別ブロックで動的注入
+  if (jitenContext && !options.bareSystem) {
+    if (!body.system) body.system = [];
+    body.system.push({ type: 'text', text: jitenContext });
+  }
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -2459,7 +2615,7 @@ async function streamGrok(messages, systemPrompt, model, onChunk) {
   const key = settings.xaiKey;
   if (!key) throw new Error('xAI APIキーが設定されていません（設定画面から入力してください）');
 
-  const grokSystem = [settings.kibanMemo, settings.chokukinMemo, systemPrompt].filter(Boolean).join('\n\n---\n\n');
+  const grokSystem = [settings.kibanMemo, settings.chokukinMemo, systemPrompt, jitenContext].filter(Boolean).join('\n\n---\n\n');
   const msgs = [];
   if (grokSystem) msgs.push({ role: 'system', content: grokSystem });
   msgs.push(...messages);

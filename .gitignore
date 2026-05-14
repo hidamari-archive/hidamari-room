@@ -1,0 +1,6 @@
+.claude/
+資料/*.txt
+資料/*.json
+資料/sage_*
+資料/kotoha_*
+辞典資料/

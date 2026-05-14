@@ -222,6 +222,7 @@ updated_at  timestamptz
 - **v0.5**（完了）：自動要約・設定画面タブ化・Enter改行/Ctrl+Enter送信・基盤メモ生成プロンプト改善・生成系noCache対応・📋を履歴リストへ移動
 - **v0.5.5**（完了）：ことはセージ辞典（jiten.html）新規作成・辞典RAGフェーズ1・2実装・📖エントリ提案ボタン
 - **v0.5.6**（完了）：📨申し送り機能・章メモ直接結合ワークフロー・基盤メモ圧縮生成（jiten.html）・月明りの間コンテキスト修正
+- **v0.5.7**（完了）：ヘッダー整理（🕯・✏️削除）・履歴上部に新規ボタン・タイトルロック永続化・削除ボタン整理・アプリ間リンク（🌿/🕯）・jiten.htmlモバイルヘッダー修正・章メモカードクリック展開（アコーディオン）・申し送りモーダルに前回表示
 - **v0.6**（次）：Gemini Explicit Caching（有料ティア対応。systemInstructionを事前キャッシュ登録）
 
 ### ブラッシュアップ候補（少しずつやる）
@@ -276,8 +277,8 @@ updated_at           timestamptz
 - 起動時にjiten_entriesの全キーワードをメモリにキャッシュ
 - 送信メッセージにキーワードが含まれると自動検索・システムプロンプトに注入（最大5件）
 - Claude：キャッシュブロックとは別の uncached ブロックで注入（Prompt Cachingに影響なし）
-- Gemini：現状 systemInstruction に混在→**TODO: messagesに移して implicit cache を守る**
-- Grok：systemに混在（同上）
+- Gemini：jitenPrefixとしてcontentsの先頭に注入（implicit cacheに影響なし）✅
+- Grok：messages先頭に注入（conv-idキャッシュ構造を維持）✅
 
 ### RAG連携（フェーズ3・未実装）
 - 文脈推測型検索：Claudeにキーワード候補を先推測させてから検索

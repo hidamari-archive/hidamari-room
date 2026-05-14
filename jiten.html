@@ -132,6 +132,8 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
 .memo-badge.in-kiban{background:var(--bg-input);color:var(--text-light)}
 .memo-preview{font-size:12px;color:var(--text-light);line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .memo-card-actions{display:flex;gap:8px}
+.btn-memo-set{background:var(--accent-light);border:1px solid var(--accent);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--accent-dark);cursor:pointer;transition:opacity .2s}
+.btn-memo-set:active{opacity:.7}
 .btn-memo-expand{background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--text-light);cursor:pointer}
 .btn-memo-delete{background:none;border:1px solid var(--danger);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--danger);cursor:pointer}
 .memo-full{font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap;display:none}
@@ -182,18 +184,11 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
 .btn-apikey-save:active{opacity:.7}
 .apikey-set{font-size:11px;color:var(--accent-dark);padding:2px 0}
 
-/* ===== INTEGRATE BUTTON on memo card ===== */
-.btn-integrate{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:var(--font-ui);transition:opacity .2s;white-space:nowrap}
-.btn-integrate:active{opacity:.75}
-
-/* ===== INTEGRATE OVERLAY ===== */
-#integrateOverlay{position:fixed;inset:0;background:rgba(20,40,30,.5);display:none;align-items:flex-end;justify-content:center;z-index:500}
-#integrateModal{background:var(--bg-card);border-radius:20px 20px 0 0;width:100%;max-width:700px;max-height:94vh;overflow-y:auto;padding:24px 20px 40px;display:flex;flex-direction:column;gap:14px}
+/* ===== STREAM OUTPUT（圧縮生成モーダル用） ===== */
 .stream-status{font-size:12px;color:var(--text-light);text-align:center;padding:4px 0;min-height:20px}
 .stream-output{background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:13px;line-height:1.8;color:var(--text);min-height:180px;max-height:45vh;overflow-y:auto;white-space:pre-wrap;word-break:break-word;font-family:var(--font-ui)}
 .stream-output.streaming::after{content:'▌';animation:blink .8s step-end infinite}
 @keyframes blink{50%{opacity:0}}
-.integrate-actions{display:flex;gap:10px}
 </style>
 </head>
 <body>
@@ -285,8 +280,8 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
       <button class="btn-kiban" style="flex:1;padding:9px" onclick="toggleSelectAll()">全選択</button>
       <button class="btn-kiban" style="flex:1;padding:9px" onclick="clearSelection()">選択解除</button>
     </div>
-    <button class="btn-merge" id="btnUpdateChokukin" onclick="updateChokukinWithApi()" disabled>
-      ✨ 選択した章を直近メモに反映する
+    <button class="btn-merge" id="btnUpdateChokukin" onclick="setCombinedChokukin()" disabled>
+      📌 選択した章を直近メモに設定する
     </button>
     <button class="btn-merge" onclick="openCompressKibanModal()" style="background:#4a7a5e;font-size:13px">
       📋 公式版から基盤メモを圧縮生成する
@@ -342,22 +337,6 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
     <div class="modal-actions" id="compressSaveActions" style="display:none">
       <button class="btn-save" id="btnSaveCompressed" onclick="saveCompressedKiban()">💾 基盤メモに保存する</button>
       <button class="btn-delete" onclick="closeCompressKiban()">キャンセル</button>
-    </div>
-  </div>
-</div>
-
-<!-- INTEGRATE OVERLAY -->
-<div id="integrateOverlay">
-  <div id="integrateModal">
-    <div class="modal-header">
-      <div class="modal-title" id="integrateTitle">✨ 基盤メモを統合</div>
-      <button class="btn-close" id="integrateCloseBtn" onclick="closeIntegrate()">✕</button>
-    </div>
-    <div class="stream-status" id="streamStatus">準備中……</div>
-    <div class="stream-output" id="streamOutput"></div>
-    <div class="integrate-actions" id="integrateActions" style="display:none">
-      <button class="btn-save" id="btnIntegrateSave" onclick="saveChokukinUpdate()">💾 直近メモに保存する</button>
-      <button class="btn-delete" onclick="closeIntegrate()">キャンセル</button>
     </div>
   </div>
 </div>
@@ -994,6 +973,7 @@ function renderMemos(){
       <div class="memo-preview" id="mprev-${m.id}">${esc(m.content)}</div>
       <div class="memo-full" id="mfull-${m.id}">${esc(m.content)}</div>
       <div class="memo-card-actions">
+        <button class="btn-memo-set" onclick="setAsChokukin('${m.id}')">📌 直近メモに設定</button>
         <button class="btn-memo-expand" onclick="toggleMemoExpand('${m.id}')">全文を見る</button>
         <button class="btn-memo-delete" onclick="deleteMemo('${m.id}')">削除</button>
       </div>
@@ -1301,173 +1281,44 @@ function initApiKeyUi(){
   }
 }
 
-// ===== INTEGRATE OVERLAY =====
-let integratingMemoIds = [];
-let generatedKiban = '';
+// ===== 直近メモ設定（AI不要・直接保存） =====
 
-function closeIntegrate(){
-  document.getElementById('integrateOverlay').style.display = 'none';
-  integratingMemoIds = [];
+async function setAsChokukin(memoId){
+  const memo = allMemos.find(m => m.id === memoId);
+  if(!memo) return;
+  const label = memo.chapter ? `第${memo.chapter}章` : '章不明';
+  if(!confirm(`${label}のメモを直近メモに設定します。\n灯だまりの家に即反映されます。`)) return;
+  await saveChokukin(memo.content, [memoId]);
 }
 
-async function updateChokukinWithApi(){
-  if(!jitenAnthropicKey){
-    alert('APIキーを設定してください（⋯メニュー → 🔑 Anthropic APIキー）');
-    return;
-  }
+async function setCombinedChokukin(){
   const checkedIds = [...document.querySelectorAll('.memo-check:checked')].map(c => c.value);
   if(!checkedIds.length){ alert('メモを選択してください'); return; }
   const selected = allMemos.filter(m => checkedIds.includes(m.id));
   selected.sort((a,b) => (a.chapter||0) - (b.chapter||0));
-  integratingMemoIds = selected.map(m => m.id);
-  await openIntegrateModal(selected);
-}
-
-async function openIntegrateModal(memos){
-  generatedKiban = '';
-  integratingMemoIds = memos.map(m => m.id);
-  const isMulti = memos.length > 1;
-  const chapterRange = isMulti
-    ? `第${memos[0].chapter||'?'}〜${memos[memos.length-1].chapter||'?'}章`
-    : `第${memos[0].chapter || '?'}章`;
-  const title = isMulti
-    ? `✨ ${memos.length}章（${chapterRange}）を直近メモに反映`
-    : `✨ ${chapterRange}を直近メモに反映`;
-
-  document.getElementById('integrateTitle').textContent = title;
-  document.getElementById('streamStatus').textContent = '基盤メモを読み込み中……';
-  document.getElementById('streamOutput').textContent = '';
-  document.getElementById('streamOutput').classList.remove('streaming');
-  document.getElementById('integrateActions').style.display = 'none';
-  document.getElementById('integrateCloseBtn').disabled = false;
-  document.getElementById('integrateOverlay').style.display = 'flex';
-
-  // Fetch kiban & chokukin
-  let currentKiban = '', currentChokukin = '';
-  try {
-    const { data: kd } = await db.from('house_memory').select('content').eq('key','kiban').single();
-    if(kd) currentKiban = kd.content;
-    const { data: cd } = await db.from('house_memory').select('content').eq('key','chokukin').single();
-    if(cd) currentChokukin = cd.content;
-  } catch(e){ console.error(e); }
-
-  // Build prompt
-  const memosText = memos
-    .map(m => `【${m.chapter ? `第${m.chapter}章` : '章不明'}の引継ぎメモ】\n${m.content}`)
+  const first = selected[0].chapter || '?';
+  const last  = selected[selected.length-1].chapter || '?';
+  const label = selected.length === 1 ? `第${first}章` : `第${first}〜${last}章（${selected.length}件）`;
+  if(!confirm(`${label}を結合して直近メモに設定します。\n灯だまりの家に即反映されます。`)) return;
+  const combined = selected
+    .map(m => `【第${m.chapter||'?'}章】\n${m.content}`)
     .join('\n\n---\n\n');
-
-  const systemPrompt = `あなたはことはセージ辞典の引継ぎメモ管理システムです。
-選択された章の引継ぎメモから「直近メモ」を生成してください。
-直近メモは、基盤メモにまだ反映されていない最近の会話コンテキストを保持するメモです。
-出力は直近メモの本文のみ。前置き・説明文・コードブロック記号は不要。`;
-
-  const userPrompt = `## 現在の直近メモ（更新前）
-${currentChokukin || '（未設定）'}
-
-## 基盤メモ（参照用・出力には含めない）
-${currentKiban ? currentKiban.slice(0, 2000) + '…（以下略）' : '（未設定）'}
-
-## 反映する引継ぎメモ（${memos.length}件・古い順）
-${memosText}
-
-## 生成ルール
-- 各章の重要な到達・新しい概念・更新された理解を時系列で統合する
-- 基盤メモに既にある情報は省略し、新しい情報を優先する
-- 最新の会話コンテキストとして機能する密度で書く
-- 直近メモ本文のみを出力（説明文・前置き不要）`;
-
-  document.getElementById('streamStatus').textContent = '生成中……';
-  document.getElementById('streamOutput').classList.add('streaming');
-
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': jitenAnthropicKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 8192,
-        stream: true,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }]
-      })
-    });
-
-    if(!resp.ok){
-      const err = await resp.json().catch(() => ({ error: { message: resp.statusText } }));
-      throw new Error(err.error?.message || resp.statusText);
-    }
-
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    const outputEl = document.getElementById('streamOutput');
-    generatedKiban = '';
-    let buf = '';
-
-    while(true){
-      const { done, value } = await reader.read();
-      if(done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split('\n');
-      buf = lines.pop(); // 未完了の行を保持
-      for(const line of lines){
-        if(!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
-        if(data === '[DONE]') continue;
-        try {
-          const obj = JSON.parse(data);
-          if(obj.type === 'content_block_delta' && obj.delta?.type === 'text_delta'){
-            generatedKiban += obj.delta.text;
-            outputEl.textContent = generatedKiban;
-            outputEl.scrollTop = outputEl.scrollHeight;
-          }
-        } catch(e){}
-      }
-    }
-
-    document.getElementById('streamOutput').classList.remove('streaming');
-    document.getElementById('streamStatus').textContent = '✓ 生成完了。内容を確認して保存してください。';
-    document.getElementById('integrateActions').style.display = 'flex';
-
-  } catch(err){
-    document.getElementById('streamOutput').classList.remove('streaming');
-    document.getElementById('streamStatus').textContent = 'エラー: ' + err.message;
-    document.getElementById('integrateActions').style.display = 'none';
-    console.error(err);
-  }
+  await saveChokukin(combined, selected.map(m => m.id));
 }
 
-async function saveChokukinUpdate(){
-  if(!generatedKiban.trim()){ alert('生成内容がありません'); return; }
-
-  const usedMemos = allMemos.filter(m => integratingMemoIds.includes(m.id));
-  if(!confirm(`直近メモを更新します（${usedMemos.length}章ぶん）。\n灯だまりの家に即反映されます。`)) return;
-
-  const btn = document.getElementById('btnIntegrateSave');
-  btn.disabled = true; btn.textContent = '保存中…';
+async function saveChokukin(content, memoIds){
   const now = new Date().toISOString();
-
-  // 直近メモを更新
-  const { error: ckErr } = await db.from('house_memory')
-    .upsert({ key:'chokukin', content:generatedKiban.trim(), updated_at:now }, { onConflict:'key' });
-  if(ckErr){ alert('直近メモの保存失敗: ' + ckErr.message); btn.disabled=false; btn.textContent='💾 直近メモに保存する'; return; }
-
-  // 使用したメモを in_chokukin にマーク
-  if(integratingMemoIds.length){
+  const { error } = await db.from('house_memory')
+    .upsert({ key:'chokukin', content, updated_at:now }, { onConflict:'key' });
+  if(error){ alert('保存失敗: ' + error.message); return; }
+  if(memoIds.length){
     const { error: mErr } = await db.from('chapter_memos')
-      .update({ status:'in_chokukin' }).in('id', integratingMemoIds);
+      .update({ status:'in_chokukin' }).in('id', memoIds);
     if(mErr) console.warn('ステータス更新失敗:', mErr.message);
   }
-
-  btn.disabled = false; btn.textContent = '💾 直近メモに保存する';
-  closeIntegrate();
   clearSelection();
   await loadMemos();
-  alert(`✓ 直近メモを更新しました（${usedMemos.length}章ぶん反映中）。`);
+  alert('✓ 直近メモを更新しました。');
 }
 
 // ===== BOOT =====

@@ -132,12 +132,23 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
 .memo-badge.in-kiban{background:var(--bg-input);color:var(--text-light)}
 .memo-preview{font-size:12px;color:var(--text-light);line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .memo-card-actions{display:flex;gap:8px}
+.memo-card{cursor:pointer}
+.memo-card-top{position:relative}
+.memo-expand-icon{position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text-light);pointer-events:none;transition:transform .2s}
+.memo-card.expanded .memo-expand-icon{transform:translateY(-50%) rotate(180deg)}
 .btn-memo-set{background:var(--accent-light);border:1px solid var(--accent);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--accent-dark);cursor:pointer;transition:opacity .2s}
 .btn-memo-set:active{opacity:.7}
-.btn-memo-expand{background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--text-light);cursor:pointer}
 .btn-memo-delete{background:none;border:1px solid var(--danger);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--danger);cursor:pointer}
 .memo-full{font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap;display:none}
 .memo-full.open{display:block}
+/* モバイルヘッダー */
+@media(max-width:480px){
+  #appHeader{flex-wrap:wrap;gap:8px;padding:10px 12px}
+  .header-title{font-size:0}
+  .header-title::before{content:'🌿';font-size:18px}
+  .header-search{min-width:0;flex:1}
+  .btn-add{padding:7px 10px;font-size:12px}
+}
 #memoActions{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--border);padding:12px 16px;display:flex;flex-direction:column;gap:8px;max-width:700px;margin:0 auto;width:100%}
 .btn-merge{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;cursor:pointer;font-family:var(--font-accent);letter-spacing:.06em;transition:opacity .2s;display:flex;align-items:center;justify-content:center;gap:6px}
 .btn-merge:active{opacity:.75}
@@ -211,6 +222,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
     <input type="search" id="searchInput" class="header-search" placeholder="キーワードで検索…" oninput="onSearch()">
     <button class="btn-add" onclick="openModal(null)">＋ 追加</button>
     <button class="btn-menu" onclick="toggleActionPanel()" title="メニュー">⋯</button>
+    <a href="./index.html" class="btn-menu" title="灯だまりの家へ" style="text-decoration:none;display:inline-flex;align-items:center">🕯</a>
   </div>
 
   <div id="actionPanel">
@@ -961,7 +973,7 @@ function renderMemos(){
     return;
   }
   list.innerHTML = allMemos.map(m => `
-    <div class="memo-card" id="mcard-${m.id}">
+    <div class="memo-card" id="mcard-${m.id}" onclick="handleMemoCardClick(event,'${m.id}')">
       <div class="memo-card-top">
         <input type="checkbox" class="memo-check" value="${m.id}"
           onchange="onMemoCheck(this, '${m.id}')">
@@ -969,12 +981,12 @@ function renderMemos(){
         ${m.status === 'in_chokukin' ? '<span class="memo-badge in-chokukin">反映中</span>' : ''}
         ${m.status === 'in_kiban'    ? '<span class="memo-badge in-kiban">基盤済み</span>'  : ''}
         <span style="font-size:11px;color:var(--text-light);margin-left:auto">${new Date(m.created_at).toLocaleDateString('ja-JP')}</span>
+        <span class="memo-expand-icon">▼</span>
       </div>
       <div class="memo-preview" id="mprev-${m.id}">${esc(m.content)}</div>
       <div class="memo-full" id="mfull-${m.id}">${esc(m.content)}</div>
       <div class="memo-card-actions">
         <button class="btn-memo-set" onclick="setAsChokukin('${m.id}')">📌 直近メモに設定</button>
-        <button class="btn-memo-expand" onclick="toggleMemoExpand('${m.id}')">全文を見る</button>
         <button class="btn-memo-delete" onclick="deleteMemo('${m.id}')">削除</button>
       </div>
     </div>
@@ -1022,13 +1034,30 @@ function clearSelection(){
   updateIntegrateBtn();
 }
 
+function handleMemoCardClick(e, id){
+  // ボタン・チェックボックスのクリックは展開に使わない
+  if(e.target.closest('button') || e.target.closest('input')) return;
+  toggleMemoExpand(id);
+}
+
 function toggleMemoExpand(id){
+  const isCurrentlyOpen = document.getElementById(`mfull-${id}`).classList.contains('open');
+  // まず全カードを閉じる
+  document.querySelectorAll('.memo-full.open').forEach(el => {
+    el.classList.remove('open');
+    const prevEl = el.previousElementSibling;
+    if(prevEl) prevEl.style.display = '';
+    el.closest('.memo-card')?.classList.remove('expanded');
+  });
+  // 既に開いていた場合はそのまま閉じた状態で終了
+  if(isCurrentlyOpen) return;
+  // 選択カードを開く
   const prev = document.getElementById(`mprev-${id}`);
   const full = document.getElementById(`mfull-${id}`);
-  const btn  = full.previousElementSibling.previousElementSibling.querySelector('.btn-memo-expand');
-  const isOpen = full.classList.toggle('open');
-  prev.style.display = isOpen ? 'none' : '';
-  if(btn) btn.textContent = isOpen ? '折りたたむ' : '全文を見る';
+  const card = document.getElementById(`mcard-${id}`);
+  full.classList.add('open');
+  prev.style.display = 'none';
+  card?.classList.add('expanded');
 }
 
 async function addMemo(){

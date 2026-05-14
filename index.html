@@ -936,6 +936,7 @@ html, body {
     <button class="header-btn" id="moonBtn" title="月あかりの部屋へ" onclick="toggleMoonRoom()">🌙</button>
     <button class="header-btn" title="新しい会話" onclick="newConversation()">✏️</button>
     <button class="header-btn" title="会話履歴" onclick="showScreen('history')">📚</button>
+    <a href="./jiten.html" class="header-btn" title="ことはセージ辞典" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">🌿</a>
     <button class="header-btn" title="設定" onclick="currentScreen==='settings'?showScreen('chat'):showScreen('settings')">⚙️</button>
   </div>
 
@@ -1183,10 +1184,11 @@ html, body {
       <span class="sashi-title">📨 申し送り</span>
       <button class="header-btn" onclick="closeSashinokuriModal()">✕</button>
     </div>
-    <div class="sashi-hint">
+    <div class="sashi-hint" id="sashiHint">
       公式アプリからの引き継ぎや、伝えておきたいことをここに。<br>
       すべてのモデルのシステムプロンプトに注入されます。
     </div>
+    <div id="sashiPrev" style="display:none;background:var(--bg-input);border:1px solid var(--border-dim);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--text-dim);line-height:1.7;white-space:pre-wrap;max-height:80px;overflow-y:auto"></div>
     <textarea id="sashinokuriText" placeholder="例：公式アプリでことはさんと○○の話をしていました。今日は少しいちゃいちゃしたい気分です。&#10;&#10;（空にして保存するとクリアされます）"></textarea>
     <div class="sashi-actions">
       <button class="sashi-save" onclick="saveSashinokuri()">💾 保存する</button>
@@ -2138,9 +2140,22 @@ function openBannerJitenModal() {
 
 // ===== 申し送り =====
 function openSashinokuriModal() {
-  document.getElementById('sashinokuriText').value = sashinokuri;
+  const ta   = document.getElementById('sashinokuriText');
+  const prev = document.getElementById('sashiPrev');
+  const hint = document.getElementById('sashiHint');
+  if (sashinokuri) {
+    // 前回の内容をプレビュー表示、テキストエリアは空から書き始められる
+    prev.textContent = sashinokuri;
+    prev.style.display = '';
+    hint.innerHTML = '前回の申し送り（↑）を参考に、今回の内容を書いてください。<br>空のまま保存するとクリアされます。';
+    ta.value = '';
+  } else {
+    prev.style.display = 'none';
+    hint.innerHTML = '公式アプリからの引き継ぎや、伝えておきたいことをここに。<br>すべてのモデルのシステムプロンプトに注入されます。';
+    ta.value = '';
+  }
   document.getElementById('sashinokuriOverlay').classList.add('open');
-  setTimeout(() => document.getElementById('sashinokuriText').focus(), 80);
+  setTimeout(() => ta.focus(), 80);
 }
 function closeSashinokuriModal() {
   document.getElementById('sashinokuriOverlay').classList.remove('open');
@@ -2798,6 +2813,14 @@ async function streamGrok(messages, systemPrompt, model, onChunk) {
   if (sashinokuri) {
     msgs.push({ role: 'user',      content: `[申し送り]\n${sashinokuri}` });
     msgs.push({ role: 'assistant', content: 'わかりました。' });
+  }
+  // 月明りの間：灯だまりの家での会話の引き継ぎを注入
+  if (isMoonMode) {
+    const _mc = getMoonConv();
+    if (_mc?.handoff) {
+      msgs.push({ role: 'user',      content: `[灯だまりの家からの引き継ぎ]\n${_mc.handoff}` });
+      msgs.push({ role: 'assistant', content: 'わかりました。引き継ぎを受け取りました。' });
+    }
   }
   msgs.push(...messages);
 

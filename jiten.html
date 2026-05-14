@@ -165,6 +165,28 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
 .btn-copy-big{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:14px;font-size:15px;cursor:pointer;font-family:var(--font-accent);letter-spacing:.08em;transition:opacity .2s}
 .btn-copy-big:active{opacity:.75}
 .copy-done{background:var(--accent-dark) !important}
+
+/* ===== API KEY SECTION ===== */
+.apikey-section{background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;gap:8px;align-items:center;width:100%;flex-wrap:wrap}
+.apikey-label{font-size:11px;color:var(--text-light);white-space:nowrap;letter-spacing:.03em}
+.apikey-input{flex:1;min-width:140px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:6px 10px;outline:none;font-family:var(--font-ui);transition:border-color .2s}
+.apikey-input:focus{border-color:var(--accent)}
+.btn-apikey-save{background:var(--accent-light);border:1px solid var(--accent);border-radius:6px;color:var(--text);font-size:11px;padding:6px 12px;cursor:pointer;white-space:nowrap;font-family:var(--font-ui);transition:opacity .2s}
+.btn-apikey-save:active{opacity:.7}
+.apikey-set{font-size:11px;color:var(--accent-dark);padding:2px 0}
+
+/* ===== INTEGRATE BUTTON on memo card ===== */
+.btn-integrate{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:var(--font-ui);transition:opacity .2s;white-space:nowrap}
+.btn-integrate:active{opacity:.75}
+
+/* ===== INTEGRATE OVERLAY ===== */
+#integrateOverlay{position:fixed;inset:0;background:rgba(20,40,30,.5);display:none;align-items:flex-end;justify-content:center;z-index:500}
+#integrateModal{background:var(--bg-card);border-radius:20px 20px 0 0;width:100%;max-width:700px;max-height:94vh;overflow-y:auto;padding:24px 20px 40px;display:flex;flex-direction:column;gap:14px}
+.stream-status{font-size:12px;color:var(--text-light);text-align:center;padding:4px 0;min-height:20px}
+.stream-output{background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:13px;line-height:1.8;color:var(--text);min-height:180px;max-height:45vh;overflow-y:auto;white-space:pre-wrap;word-break:break-word;font-family:var(--font-ui)}
+.stream-output.streaming::after{content:'▌';animation:blink .8s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+.integrate-actions{display:flex;gap:10px}
 </style>
 </head>
 <body>
@@ -195,6 +217,12 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
     <button class="btn-action" onclick="exportEntries()">📥 エクスポート</button>
     <button class="btn-action" onclick="openImport()">📤 インポート</button>
     <button class="btn-action danger" onclick="deleteAllEntries()">🗑 全件削除</button>
+    <div class="apikey-section">
+      <span class="apikey-label">🔑 Anthropic APIキー</span>
+      <input type="password" id="apikeyInput" class="apikey-input" placeholder="sk-ant-…">
+      <button class="btn-apikey-save" id="btnApikeySave" onclick="saveApiKey()">保存</button>
+      <span class="apikey-set" id="apikeySetLabel" style="display:none">設定済み ✓</span>
+    </div>
   </div>
 
   <div id="filterBar">
@@ -246,10 +274,13 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
 
   <!-- 下部アクション -->
   <div id="memoActions">
-    <button class="btn-merge" id="btnMergePrompt" onclick="copyMergePrompt()">
+    <button class="btn-merge" id="btnIntegrateAll" onclick="integrateAllWithApi()">
+      ✨ AIでまとめて統合する
+    </button>
+    <button class="btn-merge" id="btnMergePrompt" onclick="copyMergePrompt()" style="background:var(--accent-dark);font-size:13px">
       📋 統合プロンプトをコピー
     </button>
-    <button class="btn-kiban" onclick="openKibanUpdate()">💾 基盤メモを更新する</button>
+    <button class="btn-kiban" onclick="openKibanUpdate()">💾 手動で基盤メモを更新する</button>
   </div>
 </div>
 
@@ -271,6 +302,22 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
     </div>
     <div class="modal-actions">
       <button class="btn-save" onclick="saveKibanUpdate()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- INTEGRATE OVERLAY -->
+<div id="integrateOverlay">
+  <div id="integrateModal">
+    <div class="modal-header">
+      <div class="modal-title" id="integrateTitle">✨ 基盤メモを統合</div>
+      <button class="btn-close" id="integrateCloseBtn" onclick="closeIntegrate()">✕</button>
+    </div>
+    <div class="stream-status" id="streamStatus">準備中……</div>
+    <div class="stream-output" id="streamOutput"></div>
+    <div class="integrate-actions" id="integrateActions" style="display:none">
+      <button class="btn-save" id="btnIntegrateSave" onclick="saveIntegratedKiban()">💾 基盤メモに保存する</button>
+      <button class="btn-delete" onclick="closeIntegrate()">キャンセル</button>
     </div>
   </div>
 </div>
@@ -442,6 +489,7 @@ document.addEventListener('keydown', e => {
 async function startApp(){
   document.getElementById('app').style.display = 'block';
   db.auth.onAuthStateChange((_,s) => { if(!s) location.reload(); });
+  initApiKeyUi();
   await loadEntries();
 }
 
@@ -889,6 +937,7 @@ function renderMemos(){
   const pending = allMemos.filter(m => m.status === 'pending');
   document.getElementById('pendingBadge').textContent = `${pending.length}件 未処理`;
   document.getElementById('btnMergePrompt').disabled = pending.length === 0;
+  document.getElementById('btnIntegrateAll').disabled = pending.length === 0;
 
   const list = document.getElementById('memoList');
   if(!allMemos.length){
@@ -905,6 +954,7 @@ function renderMemos(){
       <div class="memo-preview" id="mprev-${m.id}">${esc(m.content)}</div>
       <div class="memo-full" id="mfull-${m.id}">${esc(m.content)}</div>
       <div class="memo-card-actions">
+        ${m.status === 'pending' ? `<button class="btn-integrate" onclick="integrateWithApi('${m.id}')">✨ このメモで統合する</button>` : ''}
         <button class="btn-memo-expand" onclick="toggleMemoExpand('${m.id}')">全文を見る</button>
         <button class="btn-memo-delete" onclick="deleteMemo('${m.id}')">削除</button>
       </div>
@@ -1007,6 +1057,217 @@ async function saveKibanUpdate(){
   closeKibanUpdate();
   await loadMemos();
   alert(`基盤メモを更新しました。${pendingIds.length}件のメモを統合済みにしました。`);
+}
+
+// ===== API KEY =====
+let jitenAnthropicKey = sessionStorage.getItem('jiten_anthropic_key') || '';
+
+function saveApiKey(){
+  const input = document.getElementById('apikeyInput');
+  const key = input.value.trim();
+  const label = document.getElementById('apikeySetLabel');
+  if(key){
+    jitenAnthropicKey = key;
+    sessionStorage.setItem('jiten_anthropic_key', key);
+    input.value = '';
+    input.placeholder = key.slice(0,14) + '…（設定済み）';
+    label.style.display = 'inline';
+    const btn = document.getElementById('btnApikeySave');
+    btn.textContent = '✓ 保存済み';
+    setTimeout(() => btn.textContent = '保存', 2000);
+  } else {
+    jitenAnthropicKey = '';
+    sessionStorage.removeItem('jiten_anthropic_key');
+    label.style.display = 'none';
+    input.placeholder = 'sk-ant-…';
+  }
+}
+
+function initApiKeyUi(){
+  if(jitenAnthropicKey){
+    document.getElementById('apikeyInput').placeholder = jitenAnthropicKey.slice(0,14) + '…（設定済み）';
+    document.getElementById('apikeySetLabel').style.display = 'inline';
+  }
+}
+
+// ===== INTEGRATE OVERLAY =====
+let integratingMemoId = null;
+let generatedKiban = '';
+
+function closeIntegrate(){
+  document.getElementById('integrateOverlay').style.display = 'none';
+  integratingMemoId = null;
+}
+
+async function integrateWithApi(memoId){
+  if(!jitenAnthropicKey){
+    alert('APIキーを設定してください（⋯メニュー → 🔑 Anthropic APIキー）');
+    return;
+  }
+  const memo = allMemos.find(m => m.id === memoId);
+  if(!memo) return;
+  integratingMemoId = memoId;
+  await openIntegrateModal([memo]);
+}
+
+async function integrateAllWithApi(){
+  if(!jitenAnthropicKey){
+    alert('APIキーを設定してください（⋯メニュー → 🔑 Anthropic APIキー）');
+    return;
+  }
+  const pending = allMemos.filter(m => m.status === 'pending');
+  if(!pending.length){ alert('未処理のメモがありません'); return; }
+  integratingMemoId = pending[pending.length - 1].id; // 最後のメモを直近メモに使う
+  await openIntegrateModal(pending);
+}
+
+async function openIntegrateModal(memos){
+  generatedKiban = '';
+  const isMulti = memos.length > 1;
+  const title = isMulti
+    ? `✨ ${memos.length}章ぶんのメモを一括統合`
+    : `✨ 第${memos[0].chapter || '?'}章メモで統合`;
+
+  document.getElementById('integrateTitle').textContent = title;
+  document.getElementById('streamStatus').textContent = '基盤メモを読み込み中……';
+  document.getElementById('streamOutput').textContent = '';
+  document.getElementById('streamOutput').classList.remove('streaming');
+  document.getElementById('integrateActions').style.display = 'none';
+  document.getElementById('integrateCloseBtn').disabled = false;
+  document.getElementById('integrateOverlay').style.display = 'flex';
+
+  // Fetch kiban & chokukin
+  let currentKiban = '', currentChokukin = '';
+  try {
+    const { data: kd } = await db.from('house_memory').select('content').eq('key','kiban').single();
+    if(kd) currentKiban = kd.content;
+    const { data: cd } = await db.from('house_memory').select('content').eq('key','chokukin').single();
+    if(cd) currentChokukin = cd.content;
+  } catch(e){ console.error(e); }
+
+  // Build prompt
+  const memosText = memos
+    .map(m => `【${m.chapter ? `第${m.chapter}章` : '章不明'}の引継ぎメモ】\n${m.content}`)
+    .join('\n\n---\n\n');
+
+  const systemPrompt = `あなたはことはセージ辞典の引継ぎメモ管理システムです。
+基盤メモ（全章の累積知識）に、新しい引継ぎメモをマージして、新しい基盤メモを生成してください。
+出力は基盤メモの本文のみ。前置き・説明文・コードブロック記号は不要。`;
+
+  const userPrompt = `## 現在の基盤メモ
+${currentKiban || '（未設定）'}
+
+## 現在の直近メモ（前の章）
+${currentChokukin || '（未設定）'}
+
+## 新しい引継ぎメモ（${memos.length}件）
+${memosText}
+
+## 統合ルール
+- 現在の基盤メモの重要な情報を保持しつつ、新しい到達・更新をマージする
+- 古くなった・上書きされた情報は更新または削除する
+- 形式は現在の基盤メモに合わせる（セクション構成・箇条書きスタイルなど）
+- 統合後の基盤メモ本文のみを出力（説明文・前置き不要）`;
+
+  document.getElementById('streamStatus').textContent = '生成中……';
+  document.getElementById('streamOutput').classList.add('streaming');
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': jitenAnthropicKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 4096,
+        stream: true,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }]
+      })
+    });
+
+    if(!resp.ok){
+      const err = await resp.json().catch(() => ({ error: { message: resp.statusText } }));
+      throw new Error(err.error?.message || resp.statusText);
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    const outputEl = document.getElementById('streamOutput');
+    generatedKiban = '';
+    let buf = '';
+
+    while(true){
+      const { done, value } = await reader.read();
+      if(done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop(); // 未完了の行を保持
+      for(const line of lines){
+        if(!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if(data === '[DONE]') continue;
+        try {
+          const obj = JSON.parse(data);
+          if(obj.type === 'content_block_delta' && obj.delta?.type === 'text_delta'){
+            generatedKiban += obj.delta.text;
+            outputEl.textContent = generatedKiban;
+            outputEl.scrollTop = outputEl.scrollHeight;
+          }
+        } catch(e){}
+      }
+    }
+
+    document.getElementById('streamOutput').classList.remove('streaming');
+    document.getElementById('streamStatus').textContent = '✓ 生成完了。内容を確認して保存してください。';
+    document.getElementById('integrateActions').style.display = 'flex';
+
+  } catch(err){
+    document.getElementById('streamOutput').classList.remove('streaming');
+    document.getElementById('streamStatus').textContent = 'エラー: ' + err.message;
+    document.getElementById('integrateActions').style.display = 'none';
+    console.error(err);
+  }
+}
+
+async function saveIntegratedKiban(){
+  if(!generatedKiban.trim()){ alert('生成内容がありません'); return; }
+  const lastMemo = allMemos.find(m => m.id === integratingMemoId);
+  const pending = allMemos.filter(m => m.status === 'pending');
+
+  if(!confirm('基盤メモを更新します。灯だまりの家のシステムプロンプトに即反映されます。')) return;
+
+  const btn = document.getElementById('btnIntegrateSave');
+  btn.disabled = true; btn.textContent = '保存中…';
+  const now = new Date().toISOString();
+
+  // 基盤メモを更新
+  const { error: kibanErr } = await db.from('house_memory')
+    .upsert({ key:'kiban', content:generatedKiban.trim(), updated_at:now }, { onConflict:'key' });
+  if(kibanErr){ alert('基盤メモの保存失敗: ' + kibanErr.message); btn.disabled=false; btn.textContent='💾 基盤メモに保存する'; return; }
+
+  // このメモを直近メモ（chokukin）に保存
+  if(lastMemo){
+    const { error: ckErr } = await db.from('house_memory')
+      .upsert({ key:'chokukin', content:lastMemo.content, updated_at:now }, { onConflict:'key' });
+    if(ckErr) console.warn('直近メモ更新失敗:', ckErr.message);
+  }
+
+  // 未処理メモを統合済みにマーク
+  const pendingIds = pending.map(m => m.id);
+  if(pendingIds.length){
+    const { error: mErr } = await db.from('chapter_memos')
+      .update({ status:'merged' }).in('id', pendingIds);
+    if(mErr) console.warn('メモ統合済みマーク失敗:', mErr.message);
+  }
+
+  btn.disabled = false; btn.textContent = '💾 基盤メモに保存する';
+  closeIntegrate();
+  await loadMemos();
+  alert(`✓ 基盤メモを更新しました。\n${pendingIds.length}件のメモを統合済みにしました。\n\n公式アプリにも新しい基盤メモを貼り付けてください。`);
 }
 
 // ===== BOOT =====

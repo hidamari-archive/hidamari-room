@@ -714,6 +714,35 @@ html, body {
   opacity: 0.7;
 }
 
+/* ===== SUMMARIZE BANNER ===== */
+#summarizeBanner {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-dim);
+  padding: 6px 16px;
+  font-size: 11px;
+  color: var(--text-light);
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+#summarizeBanner.show { display: flex; }
+#summarizeBanner .banner-jiten-btn {
+  background: var(--accent-dark);
+  color: var(--text-on-accent, #f5ede0);
+  border: none;
+  border-radius: 12px;
+  padding: 3px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  transition: opacity .2s;
+  white-space: nowrap;
+}
+#summarizeBanner .banner-jiten-btn:active { opacity: .7; }
+
 /* ===== JITEN BADGE ===== */
 #jitenBadge {
   display: none;
@@ -922,6 +951,10 @@ html, body {
       </div>
     </div>
     <div id="cacheTimerBar"></div>
+    <div id="summarizeBanner">
+      <span>🗜️ 会話を要約しました</span>
+      <button class="banner-jiten-btn" id="bannerJitenBtn" onclick="openBannerJitenModal()">📖 辞典に追加する？</button>
+    </div>
     <div id="jitenBadge"></div>
     <div id="inputArea">
       <textarea id="msgInput" placeholder="メッセージを入力…" rows="1"></textarea>
@@ -2035,12 +2068,34 @@ async function maybeAutoSummarize(conv) {
       ...recentMsgs,
     ];
     saveConversation(conv);
+    showSummarizeBanner(conv);
   } catch (e) {
     console.warn('自動要約に失敗しました:', e);
   } finally {
     timerBar.textContent = prevText;
     timerBar.style.display = prevDisplay;
   }
+}
+
+let summarizeBannerConv = null;
+let summarizeBannerTimer = null;
+
+function showSummarizeBanner(conv) {
+  summarizeBannerConv = conv;
+  const el = document.getElementById('summarizeBanner');
+  el.classList.add('show');
+  if (summarizeBannerTimer) clearTimeout(summarizeBannerTimer);
+  summarizeBannerTimer = setTimeout(() => {
+    el.classList.remove('show');
+    summarizeBannerConv = null;
+  }, 30000); // 30秒で自動消去
+}
+
+function openBannerJitenModal() {
+  if (!summarizeBannerConv) return;
+  document.getElementById('summarizeBanner').classList.remove('show');
+  if (summarizeBannerTimer) clearTimeout(summarizeBannerTimer);
+  openJitenModal(summarizeBannerConv.id);
 }
 
 // ===== JITEN RAG =====

@@ -498,24 +498,6 @@ let currentFilter = 'all';
 let currentSearch = '';
 let editingId = null;
 
-// ===== AUTH =====
-async function doLogin(){
-  const email = document.getElementById('loginEmail').value.trim();
-  const pass  = document.getElementById('loginPass').value;
-  if(!email || !pass) return;
-  const btn = document.getElementById('loginBtn');
-  const err = document.getElementById('loginErr');
-  btn.disabled = true; btn.textContent = '確認中…';
-  const { error } = await db.auth.signInWithPassword({ email, password: pass });
-  btn.disabled = false; btn.textContent = 'ログイン';
-  if(error){ err.style.opacity = '1'; setTimeout(()=>err.style.opacity='0', 2500); return; }
-  document.getElementById('loginOverlay').style.display = 'none';
-  startApp();
-}
-document.addEventListener('keydown', e => {
-  if(e.key === 'Enter' && document.getElementById('loginOverlay').style.display === 'flex') doLogin();
-});
-
 // ===== INIT =====
 async function startApp(){
   document.getElementById('app').style.display = 'block';

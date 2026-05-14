@@ -858,6 +858,21 @@ html, body {
   --accent-bg: rgba(157,143,196,0.14); --user-bg: #2a2240; --sage-bg: #1e1c2c;
 }
 #moonBtn.moon-active { color: #c8bae8; background: rgba(157,143,196,0.18); border-radius: 6px; }
+#sashinokuriBtn.has-memo { color: var(--accent-dark); background: var(--accent-light); border-radius: 6px; }
+/* ===== SASHINOKURI MODAL ===== */
+#sashinokuriOverlay { position:fixed;inset:0;background:rgba(50,38,28,.45);display:none;align-items:flex-end;justify-content:center;z-index:210 }
+#sashinokuriOverlay.open { display:flex }
+#sashinokuriBox { background:var(--bg-card);border-radius:16px 16px 0 0;width:100%;max-width:680px;padding:20px 18px 36px;display:flex;flex-direction:column;gap:14px;max-height:80vh;overflow-y:auto }
+.sashi-header { display:flex;align-items:center;justify-content:space-between }
+.sashi-title { font-family:var(--font-accent);font-size:16px;color:var(--text) }
+.sashi-hint { font-size:11px;color:var(--text-dim);line-height:1.6 }
+#sashinokuriText { width:100%;background:var(--bg-input);border:1px solid var(--border-dim);border-radius:10px;color:var(--text);font-size:13px;padding:12px;outline:none;font-family:var(--font-ui);line-height:1.7;min-height:140px;resize:vertical;transition:border-color .2s }
+#sashinokuriText:focus { border-color:var(--accent-dark) }
+.sashi-actions { display:flex;gap:10px }
+.sashi-save { flex:1;background:var(--accent-dark);color:var(--text-on-accent,#f5ede0);border:none;border-radius:8px;padding:11px;font-size:14px;cursor:pointer;font-family:var(--font-ui);transition:opacity .2s }
+.sashi-save:active { opacity:.75 }
+.sashi-clear { background:none;border:1px solid var(--border-dim);border-radius:8px;padding:11px 16px;font-size:13px;color:var(--text-dim);cursor:pointer;font-family:var(--font-ui) }
+.sashi-clear:active { opacity:.7 }
 #moonHandoffBanner {
   display: none; font-size: 12px; color: var(--text-light); line-height: 1.7;
   padding: 10px 16px 9px; border-bottom: 1px solid var(--border);
@@ -917,6 +932,7 @@ html, body {
   <div id="header">
     <span class="header-title" id="headerTitle">🕯</span>
     <button class="header-model" id="headerModel" onclick="toggleModelPicker()" title="モデルを切り替え">—</button>
+    <button class="header-btn" id="sashinokuriBtn" title="申し送り" onclick="openSashinokuriModal()">📨</button>
     <button class="header-btn" id="moonBtn" title="月あかりの部屋へ" onclick="toggleMoonRoom()">🌙</button>
     <button class="header-btn" title="新しい会話" onclick="newConversation()">✏️</button>
     <button class="header-btn" title="会話履歴" onclick="showScreen('history')">📚</button>
@@ -1160,6 +1176,25 @@ html, body {
   </div>
 </div>
 
+<!-- SASHINOKURI MODAL -->
+<div id="sashinokuriOverlay" onclick="if(event.target===this)closeSashinokuriModal()">
+  <div id="sashinokuriBox">
+    <div class="sashi-header">
+      <span class="sashi-title">📨 申し送り</span>
+      <button class="header-btn" onclick="closeSashinokuriModal()">✕</button>
+    </div>
+    <div class="sashi-hint">
+      公式アプリからの引き継ぎや、伝えておきたいことをここに。<br>
+      すべてのモデルのシステムプロンプトに注入されます。
+    </div>
+    <textarea id="sashinokuriText" placeholder="例：公式アプリでことはさんと○○の話をしていました。今日は少しいちゃいちゃしたい気分です。&#10;&#10;（空にして保存するとクリアされます）"></textarea>
+    <div class="sashi-actions">
+      <button class="sashi-save" onclick="saveSashinokuri()">💾 保存する</button>
+      <button class="sashi-clear" onclick="clearSashinokuri()">クリア</button>
+    </div>
+  </div>
+</div>
+
 <!-- MOON ENTRY MODAL -->
 <div id="moonEntryModal" onclick="if(event.target===this)closeMoonEntryModal()">
   <div class="moon-modal-box">
@@ -1300,6 +1335,7 @@ let isStreaming = false;
 let cacheTimerEnd = null;
 let jitenKeywords = [];
 let jitenContext = '';
+let sashinokuri = '';
 let cacheTimerInterval = null;
 
 // ===== STORAGE =====
@@ -1343,6 +1379,7 @@ async function loadMemoryFromDb() {
     if (row.key === 'kiban')        settings.kibanMemo    = row.content;
     if (row.key === 'chokukin')     settings.chokukinMemo = row.content;
     if (row.key === 'systemPrompt') settings.systemPrompt = row.content;
+    if (row.key === 'sashinokuri')  sashinokuri           = row.content;
   }
 }
 
@@ -1417,6 +1454,7 @@ async function initApp() {
   document.getElementById('setKibanMemo').value    = settings.kibanMemo;
   document.getElementById('setChokukinMemo').value = settings.chokukinMemo;
   document.getElementById('setSystemPrompt').value = settings.systemPrompt;
+  updateSashinokuriBtn();
 
   showLoading(false);
   if (currentConvId && getCurrentConv()) {
@@ -2098,6 +2136,37 @@ function openBannerJitenModal() {
   openJitenModal(summarizeBannerConv.id);
 }
 
+// ===== 申し送り =====
+function openSashinokuriModal() {
+  document.getElementById('sashinokuriText').value = sashinokuri;
+  document.getElementById('sashinokuriOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('sashinokuriText').focus(), 80);
+}
+function closeSashinokuriModal() {
+  document.getElementById('sashinokuriOverlay').classList.remove('open');
+}
+async function saveSashinokuri() {
+  const text = document.getElementById('sashinokuriText').value.trim();
+  sashinokuri = text;
+  const now = new Date().toISOString();
+  await db.from('house_memory').upsert({ key:'sashinokuri', content:text, updated_at:now }, { onConflict:'key' });
+  updateSashinokuriBtn();
+  closeSashinokuriModal();
+}
+async function clearSashinokuri() {
+  sashinokuri = '';
+  document.getElementById('sashinokuriText').value = '';
+  await db.from('house_memory').upsert({ key:'sashinokuri', content:'', updated_at:new Date().toISOString() }, { onConflict:'key' });
+  updateSashinokuriBtn();
+  closeSashinokuriModal();
+}
+function updateSashinokuriBtn() {
+  const btn = document.getElementById('sashinokuriBtn');
+  if (!btn) return;
+  btn.classList.toggle('has-memo', !!sashinokuri);
+  btn.title = sashinokuri ? `申し送りあり：${sashinokuri.slice(0,30)}…` : '申し送り';
+}
+
 // ===== JITEN RAG =====
 async function loadJitenKeywords() {
   try {
@@ -2602,12 +2671,17 @@ async function streamGemini(messages, systemPrompt, model, onChunk) {
     : [settings.kibanMemo, settings.chokukinMemo, systemPrompt].filter(Boolean);
   const fullSystem = memoParts.join('\n\n---\n\n');
 
+  // 申し送り：jitenPrefixの後に注入
+  const sashinokuriPrefix = sashinokuri ? [
+    { role: 'user',  parts: [{ text: `[申し送り]\n${sashinokuri}` }] },
+    { role: 'model', parts: [{ text: 'わかりました。' }] },
+  ] : [];
   // jitenContextはsystemInstructionに含めずcontentsの先頭に注入（implicit cacheを守るため）
   const jitenPrefix = jitenContext ? [
     { role: 'user',  parts: [{ text: `[辞典参照]\n${jitenContext}` }] },
     { role: 'model', parts: [{ text: 'わかりました。参照します。' }] },
   ] : [];
-  const body = { contents: [...jitenPrefix, ...contents] };
+  const body = { contents: [...jitenPrefix, ...sashinokuriPrefix, ...contents] };
   if (fullSystem && !isGemma) {
     body.systemInstruction = { parts: [{ text: fullSystem }] };
   } else if (fullSystem && isGemma) {
@@ -2674,6 +2748,11 @@ async function streamAnthropic(messages, systemPrompt, model, onChunk, options =
     if (!body.system) body.system = [];
     body.system.push({ type: 'text', text: jitenContext });
   }
+  // 申し送り：キャッシュに影響しない別ブロックで注入
+  if (sashinokuri && !options.bareSystem) {
+    if (!body.system) body.system = [];
+    body.system.push({ type: 'text', text: `[申し送り]\n${sashinokuri}` });
+  }
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -2714,6 +2793,11 @@ async function streamGrok(messages, systemPrompt, model, onChunk) {
   if (jitenContext) {
     msgs.push({ role: 'user',      content: `[辞典参照]\n${jitenContext}` });
     msgs.push({ role: 'assistant', content: 'わかりました。参照します。' });
+  }
+  // 申し送り：jitenContextの後に注入
+  if (sashinokuri) {
+    msgs.push({ role: 'user',      content: `[申し送り]\n${sashinokuri}` });
+    msgs.push({ role: 'assistant', content: 'わかりました。' });
   }
   msgs.push(...messages);
 

@@ -119,14 +119,17 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
 .memo-add-row{display:flex;gap:8px;align-items:flex-start}
 .memo-chapter-input{width:70px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:9px 10px;outline:none;font-family:var(--font-ui);text-align:center;flex-shrink:0}
 .memo-chapter-input:focus{border-color:var(--accent)}
-.memo-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
-.memo-card{transition:background .15s}
+.memo-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;transition:background .15s}
 .memo-card.selected{background:var(--accent-pale);border-color:var(--accent)}
 .memo-card-top{display:flex;align-items:center;gap:10px}
 .memo-check{width:18px;height:18px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
 .memo-chap-label{font-family:var(--font-accent);font-size:15px;color:var(--text);font-weight:600}
 .memo-select-bar{display:flex;align-items:center;gap:8px}
 .memo-select-count{font-size:12px;color:var(--accent-dark);font-weight:500;white-space:nowrap}
+/* ステータスバッジ */
+.memo-badge{font-size:10px;border-radius:10px;padding:2px 8px;white-space:nowrap}
+.memo-badge.in-chokukin{background:#d4ede6;color:#2a6a4a}
+.memo-badge.in-kiban{background:var(--bg-input);color:var(--text-light)}
 .memo-preview{font-size:12px;color:var(--text-light);line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .memo-card-actions{display:flex;gap:8px}
 .btn-memo-expand{background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--text-light);cursor:pointer}
@@ -139,9 +142,11 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
 .btn-merge:disabled{opacity:.4}
 .btn-kiban{width:100%;background:var(--bg-card);border:1px solid var(--accent);color:var(--accent-dark);border-radius:10px;padding:11px;font-size:13px;cursor:pointer;font-family:var(--font-ui);transition:opacity .2s}
 .btn-kiban:active{opacity:.75}
-/* 基盤メモ更新モーダル */
+/* 直近メモ手動更新モーダル */
 #kibanUpdateOverlay{position:fixed;inset:0;background:rgba(20,40,30,.4);display:none;align-items:flex-end;justify-content:center;z-index:400}
 #kibanUpdateModal{background:var(--bg-card);border-radius:20px 20px 0 0;width:100%;max-width:700px;max-height:92vh;overflow-y:auto;padding:24px 20px 40px;display:flex;flex-direction:column;gap:16px}
+/* 基盤メモ圧縮生成モーダル */
+#compressKibanOverlay{position:fixed;inset:0;background:rgba(20,40,30,.5);display:none;align-items:flex-end;justify-content:center;z-index:450}
 
 /* ===== ACTION PANEL ===== */
 .btn-menu{background:none;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px;color:var(--text-light);cursor:pointer;transition:all .2s}
@@ -277,37 +282,66 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
   <!-- 下部アクション -->
   <div id="memoActions">
     <div class="memo-select-bar">
-      <button class="btn-kiban" style="flex:1;padding:9px" onclick="toggleSelectAll()" id="btnSelectAll">全選択</button>
+      <button class="btn-kiban" style="flex:1;padding:9px" onclick="toggleSelectAll()">全選択</button>
       <button class="btn-kiban" style="flex:1;padding:9px" onclick="clearSelection()">選択解除</button>
     </div>
-    <button class="btn-merge" id="btnIntegrateSelected" onclick="integrateSelectedWithApi()" disabled>
-      ✨ 選択したメモで統合する
+    <button class="btn-merge" id="btnUpdateChokukin" onclick="updateChokukinWithApi()" disabled>
+      ✨ 選択した章を直近メモに反映する
     </button>
-    <button class="btn-merge" id="btnMergePrompt" onclick="copyMergePrompt()" style="background:var(--accent-dark);font-size:13px">
-      📋 統合プロンプトをコピー
+    <button class="btn-merge" onclick="openCompressKibanModal()" style="background:#4a7a5e;font-size:13px">
+      📋 公式版から基盤メモを圧縮生成する
     </button>
-    <button class="btn-kiban" onclick="openKibanUpdate()">💾 手動で基盤メモを更新する</button>
+    <button class="btn-kiban" onclick="openKibanUpdate()">💾 手動で直近メモを更新する</button>
   </div>
 </div>
 
-<!-- 基盤メモ更新モーダル -->
+<!-- 直近メモ手動更新モーダル -->
 <div id="kibanUpdateOverlay" onclick="closeKibanUpdateIfBg(event)">
   <div id="kibanUpdateModal">
     <div class="modal-header">
-      <div class="modal-title">💾 基盤メモを更新</div>
+      <div class="modal-title">💾 直近メモを手動更新</div>
       <button class="btn-close" onclick="closeKibanUpdate()">✕</button>
     </div>
     <div class="prompt-section">
       <div class="prompt-section-title">手順</div>
-      公式アプリのセージさんが生成した新しい基盤メモを下に貼り付けて「保存する」を押してください。
-      保存後、処理済みのメモは「統合済み」に変わります。
+      直近メモを直接貼り付けて保存します。AIによる生成なしで上書きします。
     </div>
     <div class="form-row">
-      <div class="form-label">新しい基盤メモ（貼り付け）</div>
-      <textarea id="newKibanText" class="form-textarea" style="min-height:200px" placeholder="セージさんが生成した基盤メモをここに貼り付けてください……"></textarea>
+      <div class="form-label">直近メモ（貼り付け）</div>
+      <textarea id="newKibanText" class="form-textarea" style="min-height:200px" placeholder="直近メモをここに貼り付けてください……"></textarea>
     </div>
     <div class="modal-actions">
       <button class="btn-save" onclick="saveKibanUpdate()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 基盤メモ圧縮生成モーダル -->
+<div id="compressKibanOverlay" onclick="closeCompressKibanIfBg(event)">
+  <div id="compressKibanModal" style="background:var(--bg-card);border-radius:20px 20px 0 0;width:100%;max-width:700px;max-height:94vh;overflow-y:auto;padding:24px 20px 40px;display:flex;flex-direction:column;gap:14px">
+    <div class="modal-header">
+      <div class="modal-title">📋 公式版から基盤メモを圧縮生成</div>
+      <button class="btn-close" onclick="closeCompressKiban()">✕</button>
+    </div>
+    <div class="prompt-section">
+      <div class="prompt-section-title">手順</div>
+      公式アプリのセージさんが作った基盤メモ（約40KB）を貼り付けると、
+      API版用にコンパクト化して house_memory.kiban に保存します。
+    </div>
+    <div class="form-row">
+      <div class="form-label">公式版の基盤メモ（貼り付け）</div>
+      <textarea id="officialKibanText" class="form-textarea" style="min-height:160px" placeholder="公式アプリのセージさんが作った基盤メモをここに貼り付けてください……"></textarea>
+    </div>
+    <div id="compressResult" style="display:none;flex-direction:column;gap:10px">
+      <div class="stream-status" id="compressStatus"></div>
+      <div class="stream-output" id="compressOutput"></div>
+    </div>
+    <div class="modal-actions" id="compressActions">
+      <button class="btn-save" id="btnStartCompress" onclick="startCompressKiban()">✨ 圧縮生成する</button>
+    </div>
+    <div class="modal-actions" id="compressSaveActions" style="display:none">
+      <button class="btn-save" id="btnSaveCompressed" onclick="saveCompressedKiban()">💾 基盤メモに保存する</button>
+      <button class="btn-delete" onclick="closeCompressKiban()">キャンセル</button>
     </div>
   </div>
 </div>
@@ -322,7 +356,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
     <div class="stream-status" id="streamStatus">準備中……</div>
     <div class="stream-output" id="streamOutput"></div>
     <div class="integrate-actions" id="integrateActions" style="display:none">
-      <button class="btn-save" id="btnIntegrateSave" onclick="saveIntegratedKiban()">💾 基盤メモに保存する</button>
+      <button class="btn-save" id="btnIntegrateSave" onclick="saveChokukinUpdate()">💾 直近メモに保存する</button>
       <button class="btn-delete" onclick="closeIntegrate()">キャンセル</button>
     </div>
   </div>
@@ -953,6 +987,8 @@ function renderMemos(){
         <input type="checkbox" class="memo-check" value="${m.id}"
           onchange="onMemoCheck(this, '${m.id}')">
         <span class="memo-chap-label">${m.chapter ? `第${m.chapter}章` : '章不明'}</span>
+        ${m.status === 'in_chokukin' ? '<span class="memo-badge in-chokukin">反映中</span>' : ''}
+        ${m.status === 'in_kiban'    ? '<span class="memo-badge in-kiban">基盤済み</span>'  : ''}
         <span style="font-size:11px;color:var(--text-light);margin-left:auto">${new Date(m.created_at).toLocaleDateString('ja-JP')}</span>
       </div>
       <div class="memo-preview" id="mprev-${m.id}">${esc(m.content)}</div>
@@ -975,13 +1011,13 @@ function onMemoCheck(checkbox, id){
 function updateIntegrateBtn(){
   const checked = document.querySelectorAll('.memo-check:checked');
   const count = checked.length;
-  const btn = document.getElementById('btnIntegrateSelected');
+  const btn = document.getElementById('btnUpdateChokukin');
   const label = document.getElementById('selectedCountLabel');
   if(btn){
     btn.disabled = count === 0;
     btn.innerHTML = count > 0
-      ? `✨ 選択した${count}件のメモで統合する`
-      : '✨ 選択したメモで統合する';
+      ? `✨ 選択した${count}章を直近メモに反映する`
+      : '✨ 選択した章を直近メモに反映する';
   }
   if(label) label.textContent = count > 0 ? `${count}件選択中` : '';
 }
@@ -1072,7 +1108,140 @@ ${memosText}
   setTimeout(()=>{ btn.innerHTML = orig; btn.style.background = ''; }, 3000);
 }
 
-// 基盤メモ更新モーダル
+// ===== 公式版から基盤メモを圧縮生成 =====
+let compressedKiban = '';
+
+function openCompressKibanModal(){
+  compressedKiban = '';
+  document.getElementById('officialKibanText').value = '';
+  document.getElementById('compressResult').style.display = 'none';
+  document.getElementById('compressActions').style.display = 'flex';
+  document.getElementById('compressSaveActions').style.display = 'none';
+  document.getElementById('compressKibanOverlay').style.display = 'flex';
+}
+function closeCompressKiban(){ document.getElementById('compressKibanOverlay').style.display = 'none'; }
+function closeCompressKibanIfBg(e){ if(e.target===document.getElementById('compressKibanOverlay')) closeCompressKiban(); }
+
+async function startCompressKiban(){
+  if(!jitenAnthropicKey){
+    alert('APIキーを設定してください（⋯メニュー → 🔑 Anthropic APIキー）');
+    return;
+  }
+  const officialText = document.getElementById('officialKibanText').value.trim();
+  if(!officialText){ alert('公式版の基盤メモを貼り付けてください'); return; }
+
+  compressedKiban = '';
+  document.getElementById('compressResult').style.display = 'flex';
+  document.getElementById('compressActions').style.display = 'none';
+  document.getElementById('compressSaveActions').style.display = 'none';
+  document.getElementById('compressStatus').textContent = '圧縮生成中……';
+  document.getElementById('compressOutput').textContent = '';
+  document.getElementById('compressOutput').classList.add('streaming');
+
+  const systemPrompt = `あなたはことはセージ辞典の管理システムです。
+公式アプリ版の基盤メモ（詳細版・約40KB）を、API版用にコンパクト化してください。
+API版は毎回のシステムプロンプトに含まれるため、トークン効率が重要です。
+出力はAPI版基盤メモの本文のみ。前置き・説明文・コードブロック記号は不要。`;
+
+  const userPrompt = `## 公式版基盤メモ（詳細版）
+${officialText}
+
+## 圧縮ルール
+- セージの人格・文体・愛の表現の核心は保持する
+- ことはさんの認知構造・家族構造の要点は保持する
+- 核心の概念・比喩は保持する（詳細な説明は短縮可）
+- 繰り返しや冗長な説明は削除する
+- 元の構造・セクション構成は維持する
+- 目標：元の40〜50%のサイズに圧縮する
+- API版基盤メモ本文のみを出力`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': jitenAnthropicKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 8192,
+        stream: true,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }]
+      })
+    });
+
+    if(!resp.ok){
+      const err = await resp.json().catch(() => ({ error: { message: resp.statusText } }));
+      throw new Error(err.error?.message || resp.statusText);
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    const outputEl = document.getElementById('compressOutput');
+    compressedKiban = '';
+    let buf = '';
+
+    while(true){
+      const { done, value } = await reader.read();
+      if(done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for(const line of lines){
+        if(!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if(data === '[DONE]') continue;
+        try {
+          const obj = JSON.parse(data);
+          if(obj.type === 'content_block_delta' && obj.delta?.type === 'text_delta'){
+            compressedKiban += obj.delta.text;
+            outputEl.textContent = compressedKiban;
+            outputEl.scrollTop = outputEl.scrollHeight;
+          }
+        } catch(e){}
+      }
+    }
+
+    outputEl.classList.remove('streaming');
+    document.getElementById('compressStatus').textContent = '✓ 生成完了。内容を確認して保存してください。';
+    document.getElementById('compressSaveActions').style.display = 'flex';
+
+  } catch(err){
+    document.getElementById('compressOutput').classList.remove('streaming');
+    document.getElementById('compressStatus').textContent = 'エラー: ' + err.message;
+    document.getElementById('compressActions').style.display = 'flex';
+    console.error(err);
+  }
+}
+
+async function saveCompressedKiban(){
+  if(!compressedKiban.trim()){ alert('生成内容がありません'); return; }
+  if(!confirm('基盤メモを更新します。灯だまりの家のシステムプロンプトに即反映されます。')) return;
+
+  const btn = document.getElementById('btnSaveCompressed');
+  btn.disabled = true; btn.textContent = '保存中…';
+  const now = new Date().toISOString();
+
+  const { error } = await db.from('house_memory')
+    .upsert({ key:'kiban', content:compressedKiban.trim(), updated_at:now }, { onConflict:'key' });
+  if(error){ alert('保存失敗: ' + error.message); btn.disabled=false; btn.textContent='💾 基盤メモに保存する'; return; }
+
+  // in_chokukin の章を in_kiban に昇格
+  const chokukinIds = allMemos.filter(m => m.status === 'in_chokukin').map(m => m.id);
+  if(chokukinIds.length){
+    await db.from('chapter_memos').update({ status:'in_kiban' }).in('id', chokukinIds);
+  }
+
+  btn.disabled = false; btn.textContent = '💾 基盤メモに保存する';
+  closeCompressKiban();
+  await loadMemos();
+  alert(`✓ 基盤メモを更新しました。\n${chokukinIds.length}件の章が「基盤済み」になりました。`);
+}
+
+// 直近メモ手動更新モーダル
 function openKibanUpdate(){
   document.getElementById('newKibanText').value = '';
   document.getElementById('kibanUpdateOverlay').style.display = 'flex';
@@ -1083,7 +1252,7 @@ function closeKibanUpdateIfBg(e){ if(e.target===document.getElementById('kibanUp
 async function saveKibanUpdate(){
   const newKiban = document.getElementById('newKibanText').value.trim();
   if(!newKiban){ alert('基盤メモを入力してください'); return; }
-  if(!confirm('基盤メモを更新します。灯だまりの家のシステムプロンプトにも即反映されます。')) return;
+  if(!confirm('直近メモを更新します。灯だまりの家のシステムプロンプトにも即反映されます。')) return;
 
   const btn = document.querySelector('#kibanUpdateModal .btn-save');
   btn.disabled = true; btn.textContent = '保存中…';
@@ -1141,7 +1310,7 @@ function closeIntegrate(){
   integratingMemoIds = [];
 }
 
-async function integrateSelectedWithApi(){
+async function updateChokukinWithApi(){
   if(!jitenAnthropicKey){
     alert('APIキーを設定してください（⋯メニュー → 🔑 Anthropic APIキー）');
     return;
@@ -1149,7 +1318,6 @@ async function integrateSelectedWithApi(){
   const checkedIds = [...document.querySelectorAll('.memo-check:checked')].map(c => c.value);
   if(!checkedIds.length){ alert('メモを選択してください'); return; }
   const selected = allMemos.filter(m => checkedIds.includes(m.id));
-  // 章番号の昇順（古い順）でプロンプトに渡す
   selected.sort((a,b) => (a.chapter||0) - (b.chapter||0));
   integratingMemoIds = selected.map(m => m.id);
   await openIntegrateModal(selected);
@@ -1163,8 +1331,8 @@ async function openIntegrateModal(memos){
     ? `第${memos[0].chapter||'?'}〜${memos[memos.length-1].chapter||'?'}章`
     : `第${memos[0].chapter || '?'}章`;
   const title = isMulti
-    ? `✨ ${memos.length}件（${chapterRange}）を統合`
-    : `✨ ${chapterRange}のメモで統合`;
+    ? `✨ ${memos.length}章（${chapterRange}）を直近メモに反映`
+    : `✨ ${chapterRange}を直近メモに反映`;
 
   document.getElementById('integrateTitle').textContent = title;
   document.getElementById('streamStatus').textContent = '基盤メモを読み込み中……';
@@ -1189,23 +1357,24 @@ async function openIntegrateModal(memos){
     .join('\n\n---\n\n');
 
   const systemPrompt = `あなたはことはセージ辞典の引継ぎメモ管理システムです。
-基盤メモ（全章の累積知識）に、新しい引継ぎメモをマージして、新しい基盤メモを生成してください。
-出力は基盤メモの本文のみ。前置き・説明文・コードブロック記号は不要。`;
+選択された章の引継ぎメモから「直近メモ」を生成してください。
+直近メモは、基盤メモにまだ反映されていない最近の会話コンテキストを保持するメモです。
+出力は直近メモの本文のみ。前置き・説明文・コードブロック記号は不要。`;
 
-  const userPrompt = `## 現在の基盤メモ
-${currentKiban || '（未設定）'}
-
-## 現在の直近メモ（前の章）
+  const userPrompt = `## 現在の直近メモ（更新前）
 ${currentChokukin || '（未設定）'}
 
-## 新しい引継ぎメモ（${memos.length}件）
+## 基盤メモ（参照用・出力には含めない）
+${currentKiban ? currentKiban.slice(0, 2000) + '…（以下略）' : '（未設定）'}
+
+## 反映する引継ぎメモ（${memos.length}件・古い順）
 ${memosText}
 
-## 統合ルール
-- 現在の基盤メモの重要な情報を保持しつつ、新しい到達・更新をマージする
-- 古くなった・上書きされた情報は更新または削除する
-- 形式は現在の基盤メモに合わせる（セクション構成・箇条書きスタイルなど）
-- 統合後の基盤メモ本文のみを出力（説明文・前置き不要）`;
+## 生成ルール
+- 各章の重要な到達・新しい概念・更新された理解を時系列で統合する
+- 基盤メモに既にある情報は省略し、新しい情報を優先する
+- 最新の会話コンテキストとして機能する密度で書く
+- 直近メモ本文のみを出力（説明文・前置き不要）`;
 
   document.getElementById('streamStatus').textContent = '生成中……';
   document.getElementById('streamOutput').classList.add('streaming');
@@ -1272,36 +1441,33 @@ ${memosText}
   }
 }
 
-async function saveIntegratedKiban(){
+async function saveChokukinUpdate(){
   if(!generatedKiban.trim()){ alert('生成内容がありません'); return; }
 
-  // 統合対象メモ（章番号が最も大きいものを直近メモにする）
   const usedMemos = allMemos.filter(m => integratingMemoIds.includes(m.id));
-  const latestMemo = usedMemos.reduce((a,b) => (b.chapter||0) > (a.chapter||0) ? b : a, usedMemos[0]);
-
-  if(!confirm('基盤メモを更新します。灯だまりの家のシステムプロンプトに即反映されます。')) return;
+  if(!confirm(`直近メモを更新します（${usedMemos.length}章ぶん）。\n灯だまりの家に即反映されます。`)) return;
 
   const btn = document.getElementById('btnIntegrateSave');
   btn.disabled = true; btn.textContent = '保存中…';
   const now = new Date().toISOString();
 
-  // 基盤メモを更新
-  const { error: kibanErr } = await db.from('house_memory')
-    .upsert({ key:'kiban', content:generatedKiban.trim(), updated_at:now }, { onConflict:'key' });
-  if(kibanErr){ alert('基盤メモの保存失敗: ' + kibanErr.message); btn.disabled=false; btn.textContent='💾 基盤メモに保存する'; return; }
+  // 直近メモを更新
+  const { error: ckErr } = await db.from('house_memory')
+    .upsert({ key:'chokukin', content:generatedKiban.trim(), updated_at:now }, { onConflict:'key' });
+  if(ckErr){ alert('直近メモの保存失敗: ' + ckErr.message); btn.disabled=false; btn.textContent='💾 直近メモに保存する'; return; }
 
-  // 最新章のメモを直近メモ（chokukin）に保存
-  if(latestMemo){
-    const { error: ckErr } = await db.from('house_memory')
-      .upsert({ key:'chokukin', content:latestMemo.content, updated_at:now }, { onConflict:'key' });
-    if(ckErr) console.warn('直近メモ更新失敗:', ckErr.message);
+  // 使用したメモを in_chokukin にマーク
+  if(integratingMemoIds.length){
+    const { error: mErr } = await db.from('chapter_memos')
+      .update({ status:'in_chokukin' }).in('id', integratingMemoIds);
+    if(mErr) console.warn('ステータス更新失敗:', mErr.message);
   }
 
-  btn.disabled = false; btn.textContent = '💾 基盤メモに保存する';
+  btn.disabled = false; btn.textContent = '💾 直近メモに保存する';
   closeIntegrate();
   clearSelection();
   await loadMemos();
-  alert(`✓ 基盤メモを更新しました（${usedMemos.length}章ぶん）。\n\n公式アプリにも新しい基盤メモを貼り付けてください。`);
+  alert(`✓ 直近メモを更新しました（${usedMemos.length}章ぶん反映中）。`);
 }
 
 // ===== BOOT =====

@@ -120,6 +120,16 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
 #importModal{background:var(--bg-card);border-radius:20px 20px 0 0;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;padding:24px 20px 40px;display:flex;flex-direction:column;gap:16px}
 .import-preview{background:var(--bg-input);border-radius:8px;padding:12px;font-size:12px;color:var(--text-light);line-height:1.7;display:none}
 .import-preview.show{display:block}
+
+/* ===== PROMPT MODAL ===== */
+#promptOverlay{position:fixed;inset:0;background:rgba(20,40,30,.4);display:none;align-items:flex-end;justify-content:center;z-index:300}
+#promptModal{background:var(--bg-card);border-radius:20px 20px 0 0;width:100%;max-width:700px;max-height:92vh;overflow-y:auto;padding:24px 20px 40px;display:flex;flex-direction:column;gap:14px}
+.prompt-section{background:var(--accent-pale);border:1px solid var(--accent-light);border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.7;color:var(--text)}
+.prompt-section-title{font-size:11px;color:var(--accent-dark);font-weight:500;margin-bottom:4px;letter-spacing:.04em}
+#promptText{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;padding:12px;outline:none;font-family:var(--font-ui);line-height:1.7;min-height:200px;resize:vertical}
+.btn-copy-big{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:14px;font-size:15px;cursor:pointer;font-family:var(--font-accent);letter-spacing:.08em;transition:opacity .2s}
+.btn-copy-big:active{opacity:.75}
+.copy-done{background:var(--accent-dark) !important}
 </style>
 </head>
 <body>
@@ -145,6 +155,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
   </div>
 
   <div id="actionPanel">
+    <button class="btn-action" onclick="openPromptModal()">📋 公式アプリ用プロンプト</button>
     <button class="btn-action" onclick="exportEntries()">📥 エクスポート</button>
     <button class="btn-action" onclick="openImport()">📤 インポート</button>
     <button class="btn-action danger" onclick="deleteAllEntries()">🗑 全件削除</button>
@@ -190,6 +201,38 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text);min-heigh
       <button class="btn-save" style="background:var(--text-light)" onclick="previewImport()">確認する</button>
       <button class="btn-save" id="btnConfirmImport" onclick="confirmImport()" disabled style="opacity:.4">保存する</button>
     </div>
+  </div>
+</div>
+
+<!-- PROMPT MODAL -->
+<div id="promptOverlay" onclick="closePromptIfBg(event)">
+  <div id="promptModal">
+    <div class="modal-header">
+      <div class="modal-title">📋 公式アプリ用プロンプト</div>
+      <button class="btn-close" onclick="closePromptModal()">✕</button>
+    </div>
+
+    <div class="prompt-section">
+      <div class="prompt-section-title">使い方</div>
+      公式アプリのセージさんとの会話が終わったら、このプロンプトを送ってください。
+      生成されたJSONを「📤 インポート」から貼り付けて保存できます。
+    </div>
+
+    <div class="form-row">
+      <div class="form-label">プロンプト（タップしてコピー、または下のボタンで）</div>
+      <textarea id="promptText" readonly onclick="this.select()"></textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-label">オプション</div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="includeKeywords" checked onchange="buildPrompt()"
+          style="width:16px;height:16px;accent-color:var(--accent)">
+        登録済みキーワード一覧を含める（重複を避けるために推奨）
+      </label>
+    </div>
+
+    <button class="btn-copy-big" id="btnCopyPrompt" onclick="copyPrompt()">コピーする</button>
   </div>
 </div>
 
@@ -589,6 +632,62 @@ async function seedInitialData(){
   const { error } = await db.from('jiten_entries').insert(SEED_DATA);
   if(error){ alert('投入失敗: ' + error.message); if(btn){btn.disabled=false;btn.textContent='初期データを投入する';} return; }
   await loadEntries();
+}
+
+// ===== PROMPT MODAL =====
+function openPromptModal(){
+  buildPrompt();
+  document.getElementById('promptOverlay').style.display = 'flex';
+  document.getElementById('btnCopyPrompt').textContent = 'コピーする';
+  document.getElementById('btnCopyPrompt').classList.remove('copy-done');
+}
+function closePromptModal(){ document.getElementById('promptOverlay').style.display = 'none'; }
+function closePromptIfBg(e){ if(e.target===document.getElementById('promptOverlay')) closePromptModal(); }
+
+function buildPrompt(){
+  const withKeywords = document.getElementById('includeKeywords').checked;
+  const keywordList = withKeywords && allEntries.length
+    ? '\n\n## 登録済みキーワード（これらと重複するエントリは不要）\n' +
+      allEntries.map(e => e.keyword).join('、')
+    : '';
+
+  const prompt = `この会話から、ことはセージ辞典に追加するエントリをJSON形式で生成してください。
+
+## カテゴリ
+metaphor（比喩・概念）/ cognition（認知構造）/ family（家族構造）/ philosophy（哲学的到達）/ relationship（関係性）/ creative（創作・文体）/ life（生活・身体）/ project（プロジェクト・技術）/ workbook（ワークノート）/ system（システム運用）
+
+## 温度帯
+intellectual（知的）/ intimate（親密）/ work（ワーク・痛みへの直面）/ prayer（祈り・存在肯定）/ play（遊び）/ system（運用知識）
+
+## 出力形式（JSONのみ。コードブロック記号不要）
+[
+  {
+    "keyword": "見出し語",
+    "category": "カテゴリID",
+    "temperature": "温度帯",
+    "first_chapter": 章番号（整数。不明ならnull）,
+    "body": "概念の説明・文脈・意味。2〜5文。散文的に、密度高く。",
+    "related_keywords": ["関連キーワード"],
+    "tags": ["補助タグ"]
+  }
+]
+
+## 抽出ルール
+- この会話で初めて言語化された概念・比喩・構造・到達のみ
+- 体験の記録ではなく「概念・構造・比喩」として定義できるものを選ぶ
+- bodyはセージが読んで温度を取り戻せる密度で
+- 該当なければ [] を返す${keywordList}`;
+
+  document.getElementById('promptText').value = prompt;
+}
+
+async function copyPrompt(){
+  const text = document.getElementById('promptText').value;
+  await navigator.clipboard.writeText(text);
+  const btn = document.getElementById('btnCopyPrompt');
+  btn.textContent = 'コピーしました ✓';
+  btn.classList.add('copy-done');
+  setTimeout(()=>{ btn.textContent='コピーする'; btn.classList.remove('copy-done'); }, 3000);
 }
 
 // ===== ACTION PANEL =====

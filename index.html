@@ -714,6 +714,25 @@ html, body {
   opacity: 0.7;
 }
 
+/* ===== JITEN BADGE ===== */
+#jitenBadge {
+  display: none;
+  font-size: 11px;
+  color: var(--text-light);
+  text-align: center;
+  padding: 3px 12px;
+  letter-spacing: 0.02em;
+}
+#jitenBadge span {
+  background: var(--bg-input);
+  border: 1px solid var(--border-dim);
+  border-radius: 10px;
+  padding: 2px 8px;
+  margin: 0 2px;
+  color: var(--accent-dark);
+  font-size: 10px;
+}
+
 /* ===== CACHE TIMER BAR ===== */
 #cacheTimerBar {
   display: none;
@@ -903,6 +922,7 @@ html, body {
       </div>
     </div>
     <div id="cacheTimerBar"></div>
+    <div id="jitenBadge"></div>
     <div id="inputArea">
       <textarea id="msgInput" placeholder="メッセージを入力…" rows="1"></textarea>
       <button id="sendBtn" onclick="sendMessage()" title="送信">↑</button>
@@ -2034,6 +2054,7 @@ async function loadJitenKeywords() {
 async function searchJiten(userText) {
   if (!jitenKeywords.length) return '';
   const matched = jitenKeywords.filter(k => userText.includes(k)).slice(0, 5);
+  showJitenBadge(matched);
   if (!matched.length) return '';
   const { data } = await db.from('jiten_entries')
     .select('keyword, body, temperature, category')
@@ -2041,6 +2062,16 @@ async function searchJiten(userText) {
   if (!data?.length) return '';
   return '【辞典参照】\n' +
     data.map(e => `■${e.keyword}\n${e.body}`).join('\n\n');
+}
+
+function showJitenBadge(keywords) {
+  const el = document.getElementById('jitenBadge');
+  if (!el) return;
+  if (!keywords.length) { el.style.display = 'none'; return; }
+  el.innerHTML = '📖 ' + keywords.map(k => `<span>${k}</span>`).join('');
+  el.style.display = 'block';
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.style.display = 'none'; }, 8000);
 }
 
 // ===== SEND MESSAGE =====
@@ -2513,16 +2544,22 @@ async function streamGemini(messages, systemPrompt, model, onChunk) {
   const skipMemo = isGemma && settings.skipMemoForGemma;
   const memoParts = skipMemo
     ? [systemPrompt].filter(Boolean)
-    : [settings.kibanMemo, settings.chokukinMemo, systemPrompt, jitenContext].filter(Boolean);
+    : [settings.kibanMemo, settings.chokukinMemo, systemPrompt].filter(Boolean);
   const fullSystem = memoParts.join('\n\n---\n\n');
 
-  const body = { contents };
+  // jitenContextはsystemInstructionに含めずcontentsの先頭に注入（implicit cacheを守るため）
+  const jitenPrefix = jitenContext ? [
+    { role: 'user',  parts: [{ text: `[辞典参照]\n${jitenContext}` }] },
+    { role: 'model', parts: [{ text: 'わかりました。参照します。' }] },
+  ] : [];
+  const body = { contents: [...jitenPrefix, ...contents] };
   if (fullSystem && !isGemma) {
     body.systemInstruction = { parts: [{ text: fullSystem }] };
   } else if (fullSystem && isGemma) {
     body.contents = [
       { role: 'user',  parts: [{ text: fullSystem + '\n\nわかりました。その役割で会話します。' }] },
       { role: 'model', parts: [{ text: 'はい、理解しました。' }] },
+      ...jitenPrefix,
       ...contents,
     ];
   }
@@ -2615,9 +2652,14 @@ async function streamGrok(messages, systemPrompt, model, onChunk) {
   const key = settings.xaiKey;
   if (!key) throw new Error('xAI APIキーが設定されていません（設定画面から入力してください）');
 
-  const grokSystem = [settings.kibanMemo, settings.chokukinMemo, systemPrompt, jitenContext].filter(Boolean).join('\n\n---\n\n');
+  const grokSystem = [settings.kibanMemo, settings.chokukinMemo, systemPrompt].filter(Boolean).join('\n\n---\n\n');
   const msgs = [];
   if (grokSystem) msgs.push({ role: 'system', content: grokSystem });
+  // jitenContextはsystemに含めず会話の先頭に注入（conv-idキャッシュを守るため）
+  if (jitenContext) {
+    msgs.push({ role: 'user',      content: `[辞典参照]\n${jitenContext}` });
+    msgs.push({ role: 'assistant', content: 'わかりました。参照します。' });
+  }
   msgs.push(...messages);
 
   const grokHeaders = {

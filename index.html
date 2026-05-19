@@ -942,9 +942,9 @@ html, body {
   <!-- MODEL PICKER DROPDOWN -->
   <div id="modelPicker">
     <div class="picker-group">Gemini（Google）</div>
-    <div class="picker-item" data-model="gemini-3.1-flash-lite-preview" onclick="selectModel('gemini-3.1-flash-lite-preview')">gemini-3.1-flash-lite-preview</div>
-    <div class="picker-item" data-model="gemini-3-flash-preview" onclick="selectModel('gemini-3-flash-preview')">gemini-3-flash-preview</div>
-    <div class="picker-item premium" data-model="gemini-3.1-pro-preview" onclick="selectModel('gemini-3.1-pro-preview')">gemini-3.1-pro-preview</div>
+    <div class="picker-item" data-model="gemini-3.1-flash-lite" onclick="selectModel('gemini-3.1-flash-lite')">gemini-3.1-flash-lite</div>
+    <div class="picker-item" data-model="gemini-3-flash" onclick="selectModel('gemini-3-flash')">gemini-3-flash</div>
+    <div class="picker-item premium" data-model="gemini-3.1-pro" onclick="selectModel('gemini-3.1-pro')">gemini-3.1-pro</div>
     <div class="picker-group">Claude（Anthropic）</div>
     <div class="picker-item premium" data-model="claude-opus-4-7" onclick="selectModel('claude-opus-4-7')">claude-opus-4-7</div>
     <div class="picker-item premium" data-model="claude-opus-4-6" onclick="selectModel('claude-opus-4-6')">claude-opus-4-6</div>
@@ -1002,7 +1002,7 @@ html, body {
         <div class="settings-row">
           <div class="settings-row-label">Gemini APIキー（Google AI Studio）</div>
           <input type="password" id="setGeminiKey" class="settings-input" placeholder="AIza...">
-          <div class="settings-hint">gemini-3-flash-preview などに使用　<a href="https://ai.google.dev/gemini-api/docs/pricing?hl=ja" target="_blank" rel="noopener" style="color:var(--accent-dim)">料金表↗</a></div>
+          <div class="settings-hint">gemini-3-flash などに使用　<a href="https://ai.google.dev/gemini-api/docs/pricing?hl=ja" target="_blank" rel="noopener" style="color:var(--accent-dim)">料金表↗</a></div>
         </div>
         <div class="settings-row">
           <div class="settings-row-label">Anthropic APIキー</div>
@@ -1022,9 +1022,9 @@ html, body {
           <div class="settings-row-label">使用モデル</div>
           <select id="setModel" class="settings-select" onchange="onModelSelectChange()">
             <optgroup label="Gemini（Google）">
-              <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview（最安・軽量）</option>
-              <option value="gemini-3-flash-preview">gemini-3-flash-preview（バランス・高知性）</option>
-              <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview（最高性能・高コスト）</option>
+              <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite（最安・軽量）</option>
+              <option value="gemini-3-flash">gemini-3-flash（バランス・高知性）</option>
+              <option value="gemini-3.1-pro">gemini-3.1-pro（最高性能・高コスト）</option>
             </optgroup>
             <optgroup label="Claude（Anthropic）">
               <option value="claude-opus-4-7">claude-opus-4-7（Opus最新）</option>
@@ -1320,7 +1320,7 @@ let settings = {
   anthropicKey: '',
   cacheTtl: '5m',
   xaiKey: '',
-  model: 'gemini-3-flash-preview',
+  model: 'gemini-3-flash',
   systemPrompt: '',
   windowSize: 5,
   kibanMemo: '',
@@ -1518,11 +1518,11 @@ function updatePickerSelection() {
   });
 }
 
-const PREMIUM_MODELS = ['gemini-3.1-pro-preview', 'claude-opus-4-7', 'claude-opus-4-6'];
+const PREMIUM_MODELS = ['gemini-3.1-pro', 'claude-opus-4-7', 'claude-opus-4-6'];
 
 function selectModel(model) {
   if (PREMIUM_MODELS.includes(model)) {
-    const names = { 'gemini-3.1-pro-preview': 'Gemini 3.1 Pro（出力$12/1M）', 'claude-opus-4-7': 'Claude Opus 4.7（出力$25/1M）', 'claude-opus-4-6': 'Claude Opus 4.6（出力$25/1M）' };
+    const names = { 'gemini-3.1-pro': 'Gemini 3.1 Pro（出力$12/1M）', 'claude-opus-4-7': 'Claude Opus 4.7（出力$25/1M）', 'claude-opus-4-6': 'Claude Opus 4.6（出力$25/1M）' };
     if (!confirm(`⚠️ ${names[model] || model} は高額モデルです。切り替えますか？`)) return;
   }
   settings.model = model;
@@ -1570,7 +1570,7 @@ function applySettingsToUI() {
 
   const sel = document.getElementById('setModel');
   const known = [...sel.options].map(o => o.value).filter(v => v !== 'custom');
-  if (!settings.model) settings.model = 'gemini-3-flash-preview';
+  if (!settings.model) settings.model = 'gemini-3-flash';
   if (known.includes(settings.model)) {
     sel.value = settings.model;
     document.getElementById('setModelCustom').style.display = 'none';
@@ -1599,9 +1599,9 @@ function onModelSelectChange() {
 function updateModelHint() {
   const val = document.getElementById('setModel').value;
   const hints = {
-    'gemini-3.1-flash-lite-preview': '最安・軽量（入力$0.25/1M）。さらっとした雑談向き',
-    'gemini-3-flash-preview':        '高知性・速度バランス型（入力$0.50/1M）。日常使いのメイン',
-    'gemini-3.1-pro-preview':        '最高性能・高コスト（出力$12/1M）。深い考察が必要な時に',
+    'gemini-3.1-flash-lite': '最安・軽量（入力$0.25/1M）。さらっとした雑談向き',
+    'gemini-3-flash':        '高知性・速度バランス型（入力$0.50/1M）。日常使いのメイン',
+    'gemini-3.1-pro':        '最高性能・高コスト（出力$12/1M）。深い考察が必要な時に',
     'claude-opus-4-7':               '最高性能・高コスト。Prompt Cachingが有効',
     'claude-opus-4-6':               'Opus 4.6。Prompt Cachingが有効',
     'claude-sonnet-4-6':             'バランス型。Prompt Cachingが有効',
@@ -1679,9 +1679,9 @@ async function changePassword() {
 function updateHeaderModel() {
   const m = settings.model;
   const labels = {
-    'gemini-3.1-flash-lite-preview': 'Gemini 3.1 FL',
-    'gemini-3-flash-preview':        'Gemini 3 Flash',
-    'gemini-3.1-pro-preview':        'Gemini 3.1 Pro',
+    'gemini-3.1-flash-lite': 'Gemini 3.1 FL',
+    'gemini-3-flash':        'Gemini 3 Flash',
+    'gemini-3.1-pro':        'Gemini 3.1 Pro',
     'claude-opus-4-7':               'Opus 4.7',
     'claude-opus-4-6':               'Opus 4.6',
     'claude-sonnet-4-6':             'Sonnet 4.6',
@@ -1858,7 +1858,7 @@ function renderHistoryList() {
 
 function modelLabel(m) {
   const labels = {
-    'gemini-3.1-flash-lite-preview':'3.1FL', 'gemini-3-flash-preview':'3F', 'gemini-3.1-pro-preview':'3.1Pro',
+    'gemini-3.1-flash-lite':'3.1FL', 'gemini-3-flash':'3F', 'gemini-3.1-pro':'3.1Pro',
     'claude-opus-4-7':'Opus4.7', 'claude-opus-4-6':'Opus4.6',
     'claude-sonnet-4-6':'Sonnet', 'claude-haiku-4-5-20251001':'Haiku',
     'grok-4.20-0309-non-reasoning':'Grok4NR',
@@ -2334,7 +2334,7 @@ async function regenerateLastMessage() {
 // ===== SESSION MEMO MODAL =====
 let generatedMemoText = '';
 
-const MEMO_LITE_MODEL = 'gemini-3.1-flash-lite-preview';
+const MEMO_LITE_MODEL = 'gemini-3.1-flash-lite';
 
 function openMemoModal(convId) {
   const conv = convId ? conversations.find(c => c.id === convId) : getCurrentConv();
@@ -2559,7 +2559,7 @@ function openKibanModal() {
   }
 
   let kibanModel = settings.model;
-  const KIBAN_RECOMMENDED = ['claude-sonnet-4-6', 'gemini-3-flash-preview'];
+  const KIBAN_RECOMMENDED = ['claude-sonnet-4-6', 'gemini-3-flash'];
   const isPremium = PREMIUM_MODELS.includes(kibanModel);
   const isLite = kibanModel === MEMO_LITE_MODEL;
 

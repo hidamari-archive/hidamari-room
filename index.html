@@ -2196,8 +2196,9 @@ function getTechoDailyContext() {
     const raw = localStorage.getItem('hidamari_techo_daily');
     if (!raw) return '';
     const obj = JSON.parse(raw);
-    // 今日の日付と一致するものだけ使う
-    const today = new Date().toISOString().slice(0, 10);
+    // ローカル時刻で今日の日付と比較（gt()と合わせる）
+    const n = new Date();
+    const today = n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0') + '-' + String(n.getDate()).padStart(2,'0');
     if (obj.date !== today) return '';
     return obj.context || '';
   } catch(e) { return ''; }

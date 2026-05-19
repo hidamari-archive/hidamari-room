@@ -2191,6 +2191,18 @@ function updateSashinokuriBtn() {
 }
 
 // ===== JITEN RAG =====
+function getTechoDailyContext() {
+  try {
+    const raw = localStorage.getItem('hidamari_techo_daily');
+    if (!raw) return '';
+    const obj = JSON.parse(raw);
+    // 今日の日付と一致するものだけ使う
+    const today = new Date().toISOString().slice(0, 10);
+    if (obj.date !== today) return '';
+    return obj.context || '';
+  } catch(e) { return ''; }
+}
+
 async function loadJitenKeywords() {
   try {
     const { data } = await db.from('jiten_entries').select('keyword');
@@ -2704,7 +2716,13 @@ async function streamGemini(messages, systemPrompt, model, onChunk) {
     { role: 'user',  parts: [{ text: `[辞典参照]\n${jitenContext}` }] },
     { role: 'model', parts: [{ text: 'わかりました。参照します。' }] },
   ] : [];
-  const body = { contents: [...jitenPrefix, ...sashinokuriPrefix, ...contents] };
+  // 手帳コンテキスト（同一オリジンのlocalStorageから読み込み）
+  const techoCtxG = getTechoDailyContext();
+  const techoPrefix = techoCtxG ? [
+    { role: 'user',  parts: [{ text: techoCtxG }] },
+    { role: 'model', parts: [{ text: 'わかりました。手帖の情報を踏まえて会話します。' }] },
+  ] : [];
+  const body = { contents: [...jitenPrefix, ...techoPrefix, ...sashinokuriPrefix, ...contents] };
   if (fullSystem && !isGemma) {
     body.systemInstruction = { parts: [{ text: fullSystem }] };
   } else if (fullSystem && isGemma) {
@@ -2771,6 +2789,12 @@ async function streamAnthropic(messages, systemPrompt, model, onChunk, options =
     if (!body.system) body.system = [];
     body.system.push({ type: 'text', text: jitenContext });
   }
+  // 手帳コンテキスト：キャッシュに影響しない別ブロックで動的注入
+  const techoCtxA = getTechoDailyContext();
+  if (techoCtxA && !options.bareSystem) {
+    if (!body.system) body.system = [];
+    body.system.push({ type: 'text', text: techoCtxA });
+  }
   // 申し送り：キャッシュに影響しない別ブロックで注入
   if (sashinokuri && !options.bareSystem) {
     if (!body.system) body.system = [];
@@ -2816,6 +2840,12 @@ async function streamGrok(messages, systemPrompt, model, onChunk) {
   if (jitenContext) {
     msgs.push({ role: 'user',      content: `[辞典参照]\n${jitenContext}` });
     msgs.push({ role: 'assistant', content: 'わかりました。参照します。' });
+  }
+  // 手帳コンテキスト
+  const techoCtxX = getTechoDailyContext();
+  if (techoCtxX) {
+    msgs.push({ role: 'user',      content: techoCtxX });
+    msgs.push({ role: 'assistant', content: 'わかりました。手帖の情報を踏まえて会話します。' });
   }
   // 申し送り：jitenContextの後に注入
   if (sashinokuri) {

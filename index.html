@@ -663,6 +663,11 @@ html, body {
   background: rgba(50,38,28,0.5); align-items: flex-end;
 }
 #jitenModal.open { display: flex; }
+.jiten-cand { display:flex; align-items:flex-start; gap:10px; padding:9px 4px; border-bottom:1px solid var(--border-dim); cursor:pointer; }
+.jiten-cand:last-child { border-bottom:none; }
+.jiten-cand input[type=checkbox] { width:18px; height:18px; flex-shrink:0; margin-top:3px; accent-color:var(--accent); cursor:pointer; }
+.jiten-cand-kw { font-size:13px; font-weight:600; color:var(--text); margin-bottom:2px; }
+.jiten-cand-desc { font-size:11px; color:var(--text-dim); line-height:1.5; }
 
 /* ===== KIBAN MEMO MODAL ===== */
 #kibanModal {
@@ -952,7 +957,7 @@ html, body {
     <div class="picker-item" data-model="claude-haiku-4-5-20251001" onclick="selectModel('claude-haiku-4-5-20251001')">claude-haiku-4-5</div>
     <div class="picker-group">Grok（xAI）</div>
     <div class="picker-item" data-model="grok-4.20-0309-non-reasoning" onclick="selectModel('grok-4.20-0309-non-reasoning')">grok-4.20-0309-non-reasoning</div>
-    <div class="picker-item" data-model="grok-4-1-fast-reasoning" onclick="selectModel('grok-4-1-fast-reasoning')">grok-4-1-fast-reasoning</div>
+    <div class="picker-item" data-model="grok-4.3" onclick="selectModel('grok-4.3')">grok-4.3</div>
   </div>
 
   <!-- CHAT SCREEN -->
@@ -1034,7 +1039,7 @@ html, body {
             </optgroup>
             <optgroup label="Grok（xAI）">
               <option value="grok-4.20-0309-non-reasoning">grok-4.20-0309-non-reasoning</option>
-              <option value="grok-4-1-fast-reasoning">grok-4-1-fast-reasoning</option>
+              <option value="grok-4.3">grok-4.3</option>
             </optgroup>
             <option value="custom">カスタム（直接入力）</option>
           </select>
@@ -1309,7 +1314,7 @@ let moonReturnText = '';
 
 function getMoonConv() {
   try { const r = localStorage.getItem(STORE_MOON); if (r) return JSON.parse(r); } catch {}
-  return { id: '__moon__', title: '月あかりの部屋', model: 'grok-4-1-fast-reasoning',
+  return { id: '__moon__', title: '月あかりの部屋', model: 'grok-4.3',
            messages: [], handoff: '', createdAt: Date.now(), updatedAt: Date.now() };
 }
 function saveMoonConv(conv) { localStorage.setItem(STORE_MOON, JSON.stringify(conv)); }
@@ -1607,8 +1612,7 @@ function updateModelHint() {
     'claude-sonnet-4-6':             'バランス型。Prompt Cachingが有効',
     'claude-haiku-4-5-20251001':     '軽量・低コスト。Prompt Cachingが有効',
     'grok-4.20-0309-non-reasoning':  'xAI Grok 4（non-reasoning）',
-    'grok-4-1-fast-reasoning':       'xAI Grok 4.1 Fast（reasoning）',
-    'grok-4-1-fast-reasoning':   'xAI Grok 4.1 Fast（non-reasoning）',
+    'grok-4.3':                      'xAI Grok 4.3（最新・汎用）',
     'custom':                        'モデルIDを直接入力してください',
   };
   document.getElementById('setModelHint').textContent = hints[val] || '';
@@ -1687,8 +1691,7 @@ function updateHeaderModel() {
     'claude-sonnet-4-6':             'Sonnet 4.6',
     'claude-haiku-4-5-20251001':     'Haiku 4.5',
     'grok-4.20-0309-non-reasoning':  'Grok 4 NR',
-    'grok-4-1-fast-reasoning':       'Grok 4.1 R',
-    'grok-4-1-fast-reasoning':   'Grok 4.1 NR',
+    'grok-4.3':                      'Grok 4.3',
   };
   document.getElementById('headerModel').textContent = (labels[m] || m || '—') + ' ▾';
   updatePickerSelection();
@@ -1862,8 +1865,7 @@ function modelLabel(m) {
     'claude-opus-4-7':'Opus4.7', 'claude-opus-4-6':'Opus4.6',
     'claude-sonnet-4-6':'Sonnet', 'claude-haiku-4-5-20251001':'Haiku',
     'grok-4.20-0309-non-reasoning':'Grok4NR',
-    'grok-4-1-fast-reasoning':'Grok4.1R',
-    'grok-4-1-fast-reasoning':'Grok4.1NR',
+    'grok-4.3':'Grok4.3',
   };
   return labels[m] || m;
 }
@@ -2460,6 +2462,7 @@ function copyMemo() {
 // ===== KIBAN MEMO MODAL =====
 // ===== JITEN ENTRY PROPOSAL =====
 let generatedJitenJson = '';
+let _jitenParsedEntries = [];
 
 function openJitenModal(convId) {
   const conv = convId ? conversations.find(c => c.id === convId) : getCurrentConv();
@@ -2522,8 +2525,33 @@ ${chatText}`;
       contentEl.textContent = fullText;
     }, { bareSystem: true, noCache: true });
     generatedJitenJson = fullText.trim();
-    document.getElementById('jitenModalTitle').textContent = '📖 辞典エントリ候補（生成完了）';
-    document.getElementById('jitenImportBtn').style.display = '';
+    // パースしてチェックリスト表示
+    try {
+      const clean = generatedJitenJson.replace(/^```[a-z]*\n?/,'').replace(/```$/,'').trim();
+      const parsed = JSON.parse(clean);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        _jitenParsedEntries = parsed;
+        contentEl.style.whiteSpace = 'normal';
+        contentEl.innerHTML = parsed.map((e, i) => `
+          <label class="jiten-cand">
+            <input type="checkbox" class="jiten-cand-cb" data-idx="${i}" checked>
+            <div>
+              <div class="jiten-cand-kw">${esc(e.keyword||'')}</div>
+              <div class="jiten-cand-desc">${esc((e.body||'').slice(0,100))}${(e.body||'').length>100?'…':''}</div>
+            </div>
+          </label>`).join('');
+        document.getElementById('jitenModalTitle').textContent = `📖 辞典エントリ候補（${parsed.length}件）`;
+      } else {
+        _jitenParsedEntries = [];
+        contentEl.textContent = '（候補なし）';
+        document.getElementById('jitenModalTitle').textContent = '📖 辞典エントリ候補（0件）';
+      }
+    } catch(_) {
+      // JSONパース失敗時はそのまま表示
+      _jitenParsedEntries = [];
+      document.getElementById('jitenModalTitle').textContent = '📖 辞典エントリ候補（生成完了）';
+    }
+    document.getElementById('jitenImportBtn').style.display = _jitenParsedEntries.length ? '' : 'none';
     document.getElementById('jitenCopyBtn').style.display = '';
   } catch(err) {
     contentEl.textContent = 'エラー: ' + err.message;
@@ -2531,31 +2559,42 @@ ${chatText}`;
   }
 }
 
-function closeJitenModal() { document.getElementById('jitenModal').classList.remove('open'); }
+function closeJitenModal() {
+  document.getElementById('jitenModal').classList.remove('open');
+  _jitenParsedEntries = [];
+  const el = document.getElementById('jitenModalContent');
+  if (el) { el.style.whiteSpace = 'pre-wrap'; el.textContent = ''; }
+}
 
 function copyJitenJson() {
   navigator.clipboard.writeText(generatedJitenJson);
 }
 
 async function importJitenEntries() {
-  let parsed;
-  try {
-    // コードブロック記号を除去してパース
-    const clean = generatedJitenJson.replace(/^```[a-z]*\n?/,'').replace(/```$/,'').trim();
-    parsed = JSON.parse(clean);
-    if (!Array.isArray(parsed)) throw new Error('配列ではありません');
-    if (parsed.length === 0) { alert('追加するエントリが0件です'); return; }
-  } catch(e) {
-    alert('JSONのパースに失敗しました。コピーしてjiten.htmlのインポート機能で手動で確認してください。\n\n' + e.message);
-    return;
+  let selected;
+  if (_jitenParsedEntries.length > 0) {
+    // チェックボックスで選択されたエントリのみ
+    const checked = document.querySelectorAll('.jiten-cand-cb:checked');
+    selected = Array.from(checked).map(cb => _jitenParsedEntries[parseInt(cb.dataset.idx)]).filter(Boolean);
+  } else {
+    // フォールバック：JSONパース
+    try {
+      const clean = generatedJitenJson.replace(/^```[a-z]*\n?/,'').replace(/```$/,'').trim();
+      selected = JSON.parse(clean);
+      if (!Array.isArray(selected)) throw new Error('配列ではありません');
+    } catch(e) {
+      alert('JSONのパースに失敗しました。コピーしてjiten.htmlのインポート機能で手動で確認してください。\n\n' + e.message);
+      return;
+    }
   }
-  if (!confirm(`${parsed.length}件のエントリを辞典に追加しますか？`)) return;
+  if (!selected.length) { alert('保存するエントリを選択してください'); return; }
+  if (!confirm(`${selected.length}件のエントリを辞典に追加しますか？`)) return;
   const btn = document.getElementById('jitenImportBtn');
   btn.disabled = true; btn.textContent = '保存中…';
-  const { error } = await db.from('jiten_entries').insert(parsed);
+  const { error } = await db.from('jiten_entries').insert(selected);
   btn.disabled = false; btn.textContent = '辞典に保存';
   if (error) { alert('保存失敗: ' + error.message); return; }
-  alert(`${parsed.length}件を辞典に保存しました。`);
+  alert(`${selected.length}件を辞典に保存しました。`);
   closeJitenModal();
   // キーワードキャッシュを更新
   await loadJitenKeywords();
@@ -2926,7 +2965,7 @@ async function enterMoonWithHandoff() {
     let handoffText = '';
     await streamGrok(
       [{ role: 'user', content: `以下の会話の今の雰囲気・温度感を、月あかりの部屋への橋渡しとして2〜3文で詩的に表現してください。\n\n${convText}` }],
-      '', 'grok-4-1-fast-reasoning',
+      '', 'grok-4.3',
       chunk => { handoffText += chunk; contentEl.textContent = handoffText; contentEl.style.display = 'block'; }
     );
     status.textContent = '';
@@ -2950,7 +2989,7 @@ function activateMoonMode(handoffText) {
   document.getElementById('headerTitle').style.display = '';
 
   if (!settings.model.startsWith('grok-')) {
-    settings.model = 'grok-4-1-fast-reasoning';
+    settings.model = 'grok-4.3';
     saveSettingsToStorage();
     updateHeaderModel();
   }
@@ -3011,7 +3050,7 @@ async function generateMoonReturn() {
     moonReturnText = '';
     await streamGrok(
       [{ role: 'user', content: `以下の会話の余韻・温度感を、朝の会話への橋渡しとして2〜3文で詩的に表現してください。センシティブな内容は抽象的に。\n\n${convText}` }],
-      '', moonConv.model || 'grok-4-1-fast-reasoning',
+      '', moonConv.model || 'grok-4.3',
       chunk => { moonReturnText += chunk; contentEl.textContent = moonReturnText; contentEl.style.display = 'block'; }
     );
     status.textContent = '';
